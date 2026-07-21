@@ -1,0 +1,97 @@
+# All tunables (SDD v3 §5 + v2 §5). Launch args override these.
+# Every value is runtime-reconfigurable via `ros2 param set`.
+/**:
+  ros__parameters:
+    # --- world (must agree between sim and controllers) ---
+    world_size: 20.0
+    bounds_min: [0.0, 0.0]
+    bounds_max: [20.0, 20.0]
+    num_agents: 8
+    motion_model: nonholonomic
+    seed: 7
+
+    # --- speeds / limits (§4.2: target_omega_max is the balance knob) ---
+    agent_max_speed: 2.0
+    agent_omega_max: 5.5
+    target_speed_multiplier: 1.8
+    target_omega_max: 1.2
+    target_body_radius: 0.15      # target collision size (= boid; no size hack)
+    target_stamina_enabled: true
+    target_stamina_drain: 0.25
+    target_stamina_regen: 0.35
+
+    # --- flocking (v2 §5) ---
+    sensing_radius: 8.0
+    safe_distance: 1.5
+    w_separation: 2.5
+    w_alignment: 0.2
+    w_cohesion: 0.2
+    w_boundary: 3.0
+    w_obstacle: 2.0
+    w_wander: 0.5
+    boundary_margin: 2.0
+    obstacle_margin: 1.0
+    wander_jitter: 0.3
+    k_linear: 1.2
+    k_angular: 4.0
+    v_min: 0.0
+    v_max: 2.0
+    w_max: 4.0
+    control_rate_hz: 30.0
+    pose_timeout: 1.0
+
+    # --- pursuit (§4.4–4.5; v4 B adds the rest) ---
+    w_pursuit: 2.0
+    # naive|intercept|pincer|encircle|herd (v3) | counter_rotate|blockade|
+    # corner_trap|herd_inward (M11) | sweep|role_encircle|bait (M12) | auto
+    pursuit_strategy: auto
+    lead_time: 1.0
+    commit_distance: 2.5          # terminal-pounce range (kills orbiting)
+    ring_radius_start: 3.0
+    ring_radius_min: 0.8
+    ring_shrink_rate: 0.2
+    herd_corner_dist: 4.5
+    capture_mode: hull            # hull|escape_blocked|tag
+    capture_k: 3
+    d_capture: 2.5
+
+    # --- procedural environments (v4 Part C, M13) ---
+    env_type: custom              # custom|open|obstacle_field|pillar|zones|shrink
+    shrink_rate: 0.0              # arena inset units/s (C.4); 0 = static
+    shrink_min: 4.0               # stop shrinking at this extent
+    zones: [0.0]                  # flat [x,y,r,kind,...] kind 0=capture 1=slow
+
+    # --- game / render (§4.6–4.7, §7.4) ---
+    game_mode: ai                 # ai|human
+    evader: reactive              # reactive|adaptive(M14)|nav2(M7)
+    episode_time_limit: 90.0
+    auto_reset: true
+    episodes_max: 0               # 0 = endless
+    render_trails: false
+    agent_radius_px: 6
+    window_px: 800
+    fps: 60
+    headless: false
+
+    # --- perception / sensor model (v4 Part A) ---
+    perception_mode: perfect      # perfect (v3 baseline) | sensor
+    fov: 3.14159                  # cone half-angle (rad); pi = omni
+    sensor_range: 8.0
+    occlusion_enabled: true
+    agent_body_radius: 0.25
+    range_sigma: 0.02             # * range  (fractional range noise)
+    bearing_sigma: 0.03           # rad
+    p_miss: 0.05                  # * range/sensor_range  (dropout)
+    emit_ids: true                # false => M9 must associate blips
+    # information sharing (v4 A.6 / M10)
+    comms_enabled: true
+    comm_range: 12.0               # mesh link distance
+    comm_jitter: 0.15             # relayed-sighting noise
+
+    # --- tracking + search (v4 A.5–A.6, sensor mode) ---
+    track_alpha: 0.5              # alpha-beta position gain
+    track_beta: 0.12              # alpha-beta velocity gain
+    track_gate: 1.8               # NN association radius (emit_ids off)
+    track_max_age: 0.6            # drop a track unseen this long (s)
+    search_enabled: true
+    w_search: 1.0                 # coverage-sweep weight when target lost

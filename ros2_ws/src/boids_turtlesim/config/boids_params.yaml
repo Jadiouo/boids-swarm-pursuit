@@ -1,0 +1,22 @@
+# Boids controller defaults (SDD v2 §5.1). Runtime-tunable via
+#   ros2 param set /turtleX/boid_controller <name> <value>
+/**/boid_controller:
+  ros__parameters:
+    sensing_radius: 3.0
+    safe_distance: 1.0
+    w_separation: 1.5
+    w_alignment: 1.0
+    w_cohesion: 1.0
+    w_boundary: 2.0
+    w_wander: 0.5
+    k_linear: 1.0
+    k_angular: 4.0
+    v_min: 0.0
+    v_max: 2.0
+    w_max: 5.0
+    bounds_min: [0.5, 0.5]
+    bounds_max: [10.5, 10.5]
+    boundary_margin: 1.5
+    wander_jitter: 0.3
+    control_rate_hz: 20.0
+    pose_timeout: 1.0

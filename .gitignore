@@ -1,0 +1,26 @@
+# --- ROS 2 / colcon 產生物 ---
+build/
+install/
+log/
+
+# --- 開發中、暫不公開的 3D Gazebo workspace ---
+gz_ws/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.eggs/
+
+# --- 編輯器 / 系統 ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# --- 執行期輸出 ---
+/tmp/
+*.log
+frames/
+screenshots/
