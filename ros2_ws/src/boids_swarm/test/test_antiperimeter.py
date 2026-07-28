@@ -72,7 +72,6 @@ def test_counter_rotate_splits_roles():
     assert chaser != inter
 
 def test_counter_rotate_falls_back_when_not_circling():
-    ctx_c = circ_ctx(1, (10.0, 18.0), circling=True, self_xy=(2.0, 10.0))
     ctx_n = circ_ctx(1, (10.0, 18.0), circling=False, self_xy=(2.0, 10.0))
     from boids_swarm.behaviors.pursuit import encircle
     assert STRATEGIES['counter_rotate'](ctx_n, PARAMS) == \

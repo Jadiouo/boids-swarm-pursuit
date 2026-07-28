@@ -97,6 +97,7 @@ class BoidController(Node):
                 'boid_controller must run in an /agentK namespace')
         self.ns, self.index = ns, int(m.group(1))
         self.n_agents = int(self.get_parameter('num_agents').value)
+        self._warned_strategy = None
 
         self.cache: dict[str, CachedPose] = {}
         self.target_pose: CachedPose | None = None
@@ -225,6 +226,23 @@ class BoidController(Node):
     def _p(self, name):
         return self.get_parameter(name).value
 
+    def _strategy(self):
+        """Resolve `pursuit_strategy`, warning ONCE per bad name.
+
+        Silently falling back would make a typo in a benchmark sweep look
+        like a real result for the strategy that was never run.
+        """
+        name = self._p('pursuit_strategy')
+        fn = STRATEGIES.get(name)
+        if fn is None:
+            if self._warned_strategy != name:
+                self._warned_strategy = name
+                self.get_logger().warn(
+                    f"unknown pursuit_strategy '{name}' — falling back to "
+                    f"'intercept'. Valid: {'|'.join(STRATEGIES)}")
+            return STRATEGIES['intercept']
+        return fn
+
     # --- control cycle (v2 §7 + pursuit term) ------------------------------
     def control_cycle(self):
         me = self.cache.get(self.ns)
@@ -285,8 +303,7 @@ class BoidController(Node):
             vy += self._p('w_wander') * wy
 
         if target_fresh:
-            strategy = STRATEGIES.get(self._p('pursuit_strategy'),
-                                      STRATEGIES['intercept'])
+            strategy = self._strategy()
             bmin, bmax = self._bounds()
             center = (0.5 * (bmin[0] + bmax[0]), 0.5 * (bmin[1] + bmax[1]))
             half_extent = 0.5 * min(bmax[0] - bmin[0], bmax[1] - bmin[1])

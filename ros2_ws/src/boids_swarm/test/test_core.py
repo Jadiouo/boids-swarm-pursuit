@@ -8,7 +8,7 @@ from boids_swarm import game
 from boids_swarm.behaviors import flocking
 from boids_swarm.behaviors.evasion import ReactiveEvader
 from boids_swarm.behaviors.pursuit import STRATEGIES, PursuitContext
-from boids_swarm.geometry import to_twist, unit, wrap_angle
+from boids_swarm.geometry import to_twist, wrap_angle
 
 PARAMS = {
     'lead_time': 1.0, 'agent_max_speed': 2.0,

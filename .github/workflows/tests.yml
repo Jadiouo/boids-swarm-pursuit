@@ -1,0 +1,31 @@
+name: tests
+
+# The unit tests are deliberately pure math (no rclpy, no pygame), so CI
+# needs neither ROS 2 nor a display — a stock Python image is enough. That
+# is also the property that keeps them runnable from a fresh clone.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install tooling
+        run: python -m pip install --upgrade pip pytest pyflakes
+
+      - name: Unit tests
+        working-directory: ros2_ws
+        run: python -m pytest -q
+
+      - name: Lint (dead code / unused imports)
+        working-directory: ros2_ws
+        run: python -m pyflakes src/boids_swarm src/boids_turtlesim

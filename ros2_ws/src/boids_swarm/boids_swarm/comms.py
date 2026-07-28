@@ -14,8 +14,6 @@ target reacting — which is exactly how you *show* the gap.
 Pure math, no ROS — unit-tested (v4 E.2).
 """
 
-import math
-
 
 class _DSU:
     """Union-find for connected components of the comm graph."""

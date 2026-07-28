@@ -1,12 +1,21 @@
 # boids_swarm
 
 ROS 2 Boids Swarm — **Cooperative Pursuit Game** (pygame display + ROS 2 core).
-Implementation of [SDD v3](../../../SDD/Sdd_boids_pursuit_v3.md).
+Implementation of [SDD v3](../../../SDD/Sdd_boids_pursuit_v3.md) and
+[SDD v4](../../../SDD/Sdd_boids_v4.md).
 
 A swarm of `N` boids must catch a target that moves at **2× swarm speed** —
 impossible for any single agent, so cooperation (prediction, flanking,
 encirclement, herding) is the only winning strategy. The target is fast but
 turns badly (`target_omega_max` is the balance knob).
+
+> **Shipped balance ≠ the 2× headline.** 2× is the design ceiling and the
+> `pygame_sim_node` default; `config/params.yaml` ships **1.8×**
+> (`target_speed_multiplier`) because 2× plus stamina measured as
+> *impossible* rather than *hard*. Likewise `target_body_radius` ships at
+> 0.15 (same size as a boid), so SDD C.1's "the bigger target must detour
+> around chokepoints" is **not** active — the sim default 0.7 turns it on.
+> Both are one `ros2 param set` away.
 
 ## Architecture (SDD §1)
 
@@ -14,7 +23,7 @@ turns badly (`target_omega_max` is the balance knob).
 |---|---|---|
 | `pygame_sim` | 1 | **The world**: physics, collisions, capture, rendering, HUD, pose/`/clock` publishing |
 | `boid_controller` | N | Per-agent flocking + pursuit (namespace `/agent0..N-1`) |
-| `target_controller` | 1 | The evader (`ReactiveEvader`; `Nav2Evader` = M7 stretch) |
+| `target_controller` | 1 | The evader (`ReactiveEvader` / `AdaptiveEvader`; `Nav2Evader` = M7 stretch) |
 
 Controllers talk to the world only via topics: `/swarm/poses`
 (aggregated, one subscription per controller — the v2 §10.2 scaling fix),
@@ -24,9 +33,16 @@ fast-forward benchmarking stays fair.
 
 ## Build & run
 
+Requires **ROS 2 Jazzy** and **pygame** (the display layer — it does *not*
+come with ROS; without it `pygame_sim` dies at import).
+
 ```bash
-cd ~/final_project/ros2_ws
+cd ~/boids-swarm-pursuit/ros2_ws
 source /opt/ros/jazzy/setup.bash
+
+sudo apt install python3-pygame
+#   or, from package.xml: rosdep install --from-paths src --ignore-src -y
+
 colcon build --symlink-install --packages-select boids_swarm
 source install/setup.bash
 
@@ -60,6 +76,36 @@ ros2 launch boids_swarm pursuit.launch.py headless:=true episodes_max:=6 \
 Capture (SDD §4.5): `capture_mode:=hull` (default; target inside convex hull
 of ≥`capture_k` boids within `d_capture`) | `escape_blocked` | `tag` (HP).
 
+## Control panel (M15)
+
+The window is `window_px + panel_px` wide: arena on the left, a live control
+panel on the right. Strategy, evader brain, capture mode, ai/human, the
+pursuit weights and the target's speed/turn caps are all editable **with the
+mouse while the sim runs** — plus RESET EPISODE and PAUSE.
+
+```bash
+ros2 launch boids_swarm pursuit.launch.py env:=obstacle_field   # panel is on by default
+ros2 launch boids_swarm pursuit.launch.py ui:=false             # arena only
+```
+
+Two properties worth knowing:
+
+- **The panel stores nothing.** It is immediate mode: each frame it reads the
+  live ROS parameter and draws that. A mouse edit and a `ros2 param set` from
+  a terminal therefore cannot disagree — there is one source of truth.
+- **`pursuit_strategy` does not live on the sim.** It lives on N separate
+  controller processes, so one click is N `SetParameters` calls. The panel
+  only *enqueues* the change; a ROS timer on the executor thread drains the
+  queue and issues the calls, keeping all rclpy work on one thread while
+  pygame owns the main thread. Requests coalesce per parameter, so dragging a
+  slider sends one fan-out per tick instead of one per mouse-move event.
+
+`perception` and `env` are shown read-only: switching them at runtime would
+mean rebuilding subscriptions and regenerating + rebroadcasting the layout,
+so they stay launch-time decisions.
+
+Panel off automatically when `headless:=true` (no window, no mouse).
+
 ## Live tuning
 
 Every parameter is runtime-reconfigurable:
@@ -71,12 +117,6 @@ ros2 param set /pygame_sim screenshot_dir /tmp/shots   # periodic PNGs
 ```
 
 Defaults: [config/params.yaml](config/params.yaml).
-
-## Tests
-
-```bash
-python3 -m pytest src/boids_swarm/test/ -q   # 90 pure-math tests (v3 + v4)
-```
 
 ## Hard-won implementation notes (read before touching the control loop)
 
@@ -165,7 +205,7 @@ ros2 launch boids_swarm pursuit.launch.py strategy:=auto env:=obstacle_field sta
 ```
 
 **Procedural environments** (`env:=`): `obstacle_field` (a **fixed,
-hand-authored maze** — 16 varied-size circles spread across the arena with
+hand-authored maze** — 12 varied-size circles spread across the arena with
 a clear passage between every pair, identical every run; obstacle
 avoidance also slides tangentially around a circle so agents arc past
 smoothly), `pillar`, `zones` (capture zone = win, tar pit = nullify 2×
@@ -208,7 +248,13 @@ target's retreat-to-open behavior is the job that finally justifies it).
 
 ## Tests
 
-90 pure-math unit tests (`pytest src/boids_swarm/test/`): flocking, capture
-geometry, pursuit strategies (v3 + M11 + M12), perception (FOV/occlusion/
-noise/dropout/round-trip), tracking (alpha-beta/association/circling), comms
-mesh, world generation, adaptive evader.
+135 pure-math unit tests — no ROS, no pygame, runnable straight from a fresh
+clone (`ros2_ws/pytest.ini` puts both packages on the path):
+
+```bash
+cd ros2_ws && python3 -m pytest -q
+```
+
+Coverage: flocking, capture geometry, pursuit strategies (v3 + M11 + M12),
+perception (FOV/occlusion/noise/dropout/round-trip), tracking (alpha-beta/
+association/circling), comms mesh, world generation, adaptive evader.

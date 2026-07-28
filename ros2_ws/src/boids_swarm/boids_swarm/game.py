@@ -104,10 +104,16 @@ class Scoreboard:
         self.t_episode = 0.0
         self.capture_times = []
         self.min_pairwise = float('inf')
-        self.boids_lost = 0
 
     def start_episode(self):
         self.episode += 1
+        self.t_episode = 0.0
+        self.min_pairwise = float('inf')
+
+    def restart_episode(self):
+        """Manual do-over (the GUI's RESET button): reset the clock and the
+        per-episode metrics WITHOUT counting another episode, so hand-driven
+        resets can't inflate the capture-rate denominator."""
         self.t_episode = 0.0
         self.min_pairwise = float('inf')
 

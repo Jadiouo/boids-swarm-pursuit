@@ -14,7 +14,7 @@ A Layout carries:
   perimeter-circling physically impossible and guarantees termination.
 """
 
-import math
+import random
 from dataclasses import dataclass, field
 
 
@@ -44,24 +44,8 @@ class WorldGenerator:
     byte-identical layout."""
 
     def __init__(self, seed, world_size=20.0):
-        self.rng = __import__('random').Random(seed)
+        self.rng = random.Random(seed)
         self.w = world_size
-
-    # -- Poisson-ish rejection sampling (deterministic) --------------------
-    def _scatter(self, n, r_range, margin, min_gap, existing):
-        placed = list(existing)
-        out = []
-        tries = 0
-        while len(out) < n and tries < n * 60:
-            tries += 1
-            x = self.rng.uniform(margin, self.w - margin)
-            y = self.rng.uniform(margin, self.w - margin)
-            r = self.rng.uniform(*r_range)
-            if all(math.hypot(x - px, y - py) > r + pr + min_gap
-                   for (px, py, pr) in placed):
-                out.append((x, y, r))
-                placed.append((x, y, r))
-        return out
 
     # -- layouts -----------------------------------------------------------
     def generate(self, env_type='open'):

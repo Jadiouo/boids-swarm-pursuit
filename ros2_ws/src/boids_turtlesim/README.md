@@ -10,7 +10,7 @@ converted to non-holonomic `Twist` commands (no-reverse, deadlock-fixed).
 ## Build
 
 ```bash
-cd ~/final_project/ros2_ws
+cd ~/boids-swarm-pursuit/ros2_ws
 source /opt/ros/jazzy/setup.bash
 colcon build --symlink-install
 source install/setup.bash
@@ -41,7 +41,7 @@ Tuning order (§5.3): Separation+Boundary → Cohesion → Alignment → gains.
 ## Tests
 
 ```bash
-python3 -m pytest src/boids_turtlesim/test/ -q     # pure-math behavior tests
+cd ros2_ws && python3 -m pytest src/boids_turtlesim/test -q   # pure-math, no ROS needed
 ```
 
 ## Layout

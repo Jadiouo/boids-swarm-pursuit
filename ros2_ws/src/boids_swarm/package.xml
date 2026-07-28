@@ -2,12 +2,15 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>boids_swarm</name>
-  <version>0.3.0</version>
-  <description>Boids swarm cooperative pursuit game (SDD v3): pygame world + ROS 2 controllers</description>
+  <version>0.5.0</version>
+  <description>Boids swarm cooperative pursuit game (SDD v3+v4): pygame world + ROS 2 per-agent controllers, sensor model, tracking, comms mesh, procedural worlds</description>
   <maintainer email="lexho2005@gmail.com">lexho</maintainer>
   <license>MIT</license>
 
   <exec_depend>rclpy</exec_depend>
+  <!-- parameter plumbing: SetParametersResult, and the SetParameters
+       service the GUI uses to retune the controller nodes (M15) -->
+  <exec_depend>rcl_interfaces</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>rosgraph_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>

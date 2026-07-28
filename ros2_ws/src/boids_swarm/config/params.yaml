@@ -11,11 +11,25 @@
     seed: 7
 
     # --- speeds / limits (§4.2: target_omega_max is the balance knob) ---
+    # NOTE: the docs headline the target as "2x swarm speed" — that is the
+    # design ceiling and the pygame_sim_node default. The values SHIPPED
+    # here are the measured-playable ones: 2x + stamina benchmarked as
+    # impossible rather than hard, so the game ships at 1.8x. Set 2.0 to
+    # restore the spec figure (expect far fewer captures).
     agent_max_speed: 2.0
     agent_omega_max: 5.5
-    target_speed_multiplier: 1.8
+    target_speed_multiplier: 1.8  # spec says 2.0; 1.8 = measured balance
+    # THE balance knob (§4.2, M4/M5). At the sim's own default of 2.5 the
+    # sprint turn radius is ~1.6 — "fast AND agile" — and the swarm cannot
+    # win. 1.2 gives radius ~3.3: fast but turns badly. Do not drop this
+    # line; without it the sim falls back to 2.5 and every capture rate
+    # collapses.
     target_omega_max: 1.2
-    target_body_radius: 0.15      # target collision size (= boid; no size hack)
+    # Same story as the speed multiplier: sim default is 0.7, which is SDD
+    # C.1 ("the bigger target must detour around chokepoints boids slip
+    # through"). Shipping 0.15 (= boid size) keeps that feature OFF — set
+    # 0.7 to enable it.
+    target_body_radius: 0.15      # target collision size (= boid)
     target_stamina_enabled: true
     target_stamina_drain: 0.25
     target_stamina_regen: 0.35

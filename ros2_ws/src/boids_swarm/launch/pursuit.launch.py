@@ -7,6 +7,7 @@
 
 import os
 
+import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, Shutdown
@@ -24,30 +25,43 @@ def _parse_obstacles(text: str):
     return flat if flat else [0.0]
 
 
+def _world_size(params_file):
+    """Read world_size from params.yaml so the launch-side WorldGenerator
+    scales to the SAME arena the sim will use. Hard-coding 20.0 here made
+    a changed world_size silently produce a mis-scaled procedural map."""
+    try:
+        with open(params_file) as f:
+            doc = yaml.safe_load(f) or {}
+        return float(doc['/**']['ros__parameters']['world_size'])
+    except (OSError, KeyError, TypeError, ValueError):
+        return 20.0
+
+
 def launch_setup(context):
     cfg = {k: LaunchConfiguration(k).perform(context)
            for k in ('num_agents', 'strategy', 'game_mode', 'seed',
                      'headless', 'trails', 'capture_mode', 'episodes_max',
                      'time_limit', 'stamina', 'obstacles', 'evader',
-                     'perception', 'env', 'shrink_rate',
+                     'perception', 'env', 'shrink_rate', 'ui',
                      'screenshot_dir', 'screenshot_period')}
     n = int(cfg['num_agents'])
     # Procedural env (v4 M13): generate the layout in the launch so the sim
     # AND the controllers share the same obstacles; zones/shrink go to the
     # sim only. env=custom keeps the obstacles string arg (v3 behavior).
+    params_file = os.path.join(get_package_share_directory('boids_swarm'),
+                               'config', 'params.yaml')
     zones = [0.0]
     shrink_rate = float(cfg['shrink_rate'])
     if cfg['env'] != 'custom':
         from boids_swarm.world_gen import WorldGenerator
-        layout = WorldGenerator(int(cfg['seed']), 20.0).generate(cfg['env'])
+        layout = WorldGenerator(int(cfg['seed']),
+                                _world_size(params_file)).generate(cfg['env'])
         obstacles = layout.obstacles_flat()
         zones = layout.zones_flat()
         if layout.shrink_rate > 0.0:
             shrink_rate = layout.shrink_rate
     else:
         obstacles = _parse_obstacles(cfg['obstacles'])
-    params_file = os.path.join(get_package_share_directory('boids_swarm'),
-                               'config', 'params.yaml')
     common = {
         'num_agents': n,
         'seed': int(cfg['seed']),
@@ -74,6 +88,17 @@ def launch_setup(context):
                  'env_type': 'custom',   # layout already generated in launch
                  'zones': zones,
                  'shrink_rate': shrink_rate,
+                 # Mirrors for the control panel (M15): these parameters
+                 # really live on the controllers, but the sim draws them,
+                 # so it must start from the SAME launch args they got.
+                 'pursuit_strategy': cfg['strategy'],
+                 'evader': cfg['evader'],
+                 'ui_enabled': cfg['ui'].lower() == 'true',
+                 # Display-only: env_type stays 'custom' because the layout
+                 # was already generated here (regenerating in the sim would
+                 # be the double-generation trap from log.md #11), but the
+                 # panel should still name the env the user asked for.
+                 'env_label': cfg['env'],
                  'screenshot_dir': cfg['screenshot_dir'],
                  'screenshot_period': float(cfg['screenshot_period']),
              }]),
@@ -104,7 +129,9 @@ def generate_launch_description():
                         'sweep|role_encircle|bait'),
         DeclareLaunchArgument('game_mode', default_value='ai',
                               description='ai|human'),
-        DeclareLaunchArgument('evader', default_value='reactive'),
+        DeclareLaunchArgument(
+            'evader', default_value='reactive',
+            description='reactive|adaptive (v4 M14)|nav2 (M7 stub)'),
         DeclareLaunchArgument('seed', default_value='7'),
         DeclareLaunchArgument('headless', default_value='false'),
         DeclareLaunchArgument('trails', default_value='false'),
@@ -121,6 +148,9 @@ def generate_launch_description():
             description='custom|open|obstacle_field|pillar|zones|shrink'),
         DeclareLaunchArgument('shrink_rate', default_value='0.0',
                               description='arena shrink units/s (v4 C.4)'),
+        DeclareLaunchArgument(
+            'ui', default_value='true',
+            description='in-window control panel (M15); ignored if headless'),
         DeclareLaunchArgument('screenshot_dir', default_value='',
                               description='save periodic PNG frames here'),
         DeclareLaunchArgument('screenshot_period', default_value='5.0'),

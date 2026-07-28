@@ -1,8 +1,17 @@
 # ROS 2 Boids 群體協同追捕 — 專案介紹
 
+[![tests](https://github.com/Jadiouo/boids-swarm-pursuit/actions/workflows/tests.yml/badge.svg)](https://github.com/Jadiouo/boids-swarm-pursuit/actions/workflows/tests.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 一個用 **ROS 2 (Jazzy)** 打造的多機器人群體智慧沙盒:一群 boids(鳥群/群體 agent)透過**分散式、局部感知**的協同,合作圍捕一個速度是自己 **2 倍**的目標。單一 agent 永遠追不上,唯有靠**預測、包抄、包圍、驅趕**等群體戰術才可能得手 —— 這正是專案的核心趣味與研究價值。
 
 最終目標是把這套群體控制邏輯遷移到真實無人機(Crazyflie / Crazyswarm2),所以整個設計刻意保持「分散式 + 局部感知」的骨架。
+
+> **關於「2×」**:2× 是設計上限,也是 `pygame_sim_node` 的預設值。實際出貨的
+> `config/params.yaml` 用 **1.8×**(`target_speed_multiplier`),因為實測 2× 搭配
+> stamina 之後遊戲偏向「不可能」而非「難」。同理 `target_body_radius` 出貨值是
+> 0.15(與 boid 同大小),SDD C.1「大目標擠不過通道」那條的 sim 預設 0.7 沒有啟用。
+> 兩個值都可以直接在 params.yaml 或 `ros2 param set` 改回去。
 
 ---
 
@@ -15,9 +24,10 @@
 | **v2** | Boids 群聚核心 | ROS 2 `turtlesim` | 分離/對齊/凝聚/邊界/漫遊 + 非完整約束運動學轉換 |
 | **v3** | 協同追捕遊戲 | 自製 **pygame** 世界 | 追捕遊戲迴圈、T0–T4 策略階梯、捕獲/計分、可玩 human 模式 |
 | **v4** | 感知模型、進階控制、程序化環境 | 同上 | 真實感測器模型、航跡追蹤、資訊分享、反周界戰術、程序化地圖、自適應目標 |
+| **v5** | 視窗內控制面板(M15) | 同上 | 滑鼠即時改策略/大腦/模式/權重,參數扇出到 N 個 controller |
 
 - **`boids_turtlesim/`** — v2 套件(turtlesim 群聚)
-- **`boids_swarm/`** — v3 + v4 主套件(pygame 世界 + 追捕遊戲)
+- **`boids_swarm/`** — v3–v5 主套件(pygame 世界 + 追捕遊戲 + 控制面板)
 
 ---
 
@@ -42,7 +52,7 @@
 
 ---
 
-## 主要功能(v4 現況)
+## 主要功能(v5 現況)
 
 ### 感知(可切 `perception:=perfect|sensor`)
 - **perfect**:v3 基準,廣播全域真值(回歸用)。
@@ -61,20 +71,52 @@
 - **終端撲擊**:靠近目標時直接撲上(而非繞圈),果斷收網。
 
 ### 程序化環境(`env:=`,種子決定式)
-- `obstacle_field`(**固定手工地圖** —— 16 顆大小不一的圓鋪滿整張、彼此留通道,每次都一模一樣;避障另加**切向滑過**分量讓 agent 弧線繞過障礙)、`pillar`(中央柱)、`zones`(綠=捕獲區直接贏、琥珀=焦油坑抵消 2× 速)、`shrink`(競技場邊界內縮,讓周界迴圈物理上不可能)。
+- `obstacle_field`(**固定手工地圖** —— 12 顆大小不一的圓鋪滿整張、彼此留通道,每次都一模一樣;避障另加**切向滑過**分量讓 agent 弧線繞過障礙)、`pillar`(中央柱)、`zones`(綠=捕獲區直接贏、琥珀=焦油坑抵消速度優勢)、`shrink`(競技場邊界內縮,讓周界迴圈物理上不可能)。
 
 ### 自適應目標(`evader:=reactive|adaptive`)
 - **adaptive**:效用選擇器在行為 repertoire(逃離 / 沿牆跑 / 急閃 / 穿隙 / 障礙掩護)上依威脅幾何評分,含遲滯避免抖動。與自適應追捕者形成軍備競賽。
+
+### 視窗內控制面板(M15)
+視窗右側 280px 是控制區,**跑的時候直接用滑鼠改策略與參數**,不用重開:
+
+| 區塊 | 控制項 |
+|---|---|
+| PURSUIT | strategy(13 種循環)、`w_pursuit`、`commit_distance`、`ring_radius_start` |
+| TARGET | evader(reactive↔adaptive)、速度倍率、轉向率、stamina |
+| GAME | capture_mode(hull/escape_blocked/tag)、`d_capture`、ai↔human |
+| WORLD / VIEW | 軌跡、comms mesh |
+| | RESET EPISODE(重開本回合,**不會灌水回合數**)、PAUSE |
+| 唯讀 | perception、env、agent 數 —— 這三個在 launch 時決定 |
+
+兩個設計重點:
+
+- **面板不持有任何數值**(immediate mode):每幀去問 ROS 參數現值再畫。所以你用滑鼠改、跟在另一個終端下 `ros2 param set`,兩邊永遠一致。
+- `pursuit_strategy` 其實住在 **N 個獨立的 controller 行程**上,面板改一次 = N 個 `SetParameters` service call。這些呼叫**排進佇列、由 executor 執行緒統一發送**(pygame 在主執行緒),同一個參數只留最新值 —— 否則拖一次滑桿會塞爆數百輪扇出。
+
+面板需要視窗和滑鼠,所以 `headless:=true` 時自動關閉;也可以用 `ui:=false` 手動關掉。
 
 ---
 
 ## 怎麼跑
 
+需求:**ROS 2 Jazzy** + Python 3.12 + **pygame**(顯示層,不隨 ROS 安裝)。
+
 ```bash
-cd ~/final_project/ros2_ws
+cd ~/boids-swarm-pursuit/ros2_ws
 source /opt/ros/jazzy/setup.bash
+
+# 依賴(pygame 一定要裝,否則 pygame_sim 一啟動就 ModuleNotFoundError)
+sudo apt install python3-pygame
+#   或讓 rosdep 依 package.xml 補齊:
+#   rosdep install --from-paths src --ignore-src -y
+#   沒有 sudo 的話(Ubuntu 24.04 的 PEP 668 會擋掉單純的 pip install):
+#   python3 -m pip install --user --break-system-packages pygame
+
 colcon build --symlink-install --packages-select boids_swarm
 source install/setup.bash            # 每個新終端都要
+
+# 追捕遊戲 + 控制面板(預設就有;滑鼠即時改策略/參數)
+ros2 launch boids_swarm pursuit.launch.py num_agents:=12 env:=obstacle_field
 
 # 純群聚(無目標)
 ros2 launch boids_swarm flocking.launch.py num_agents:=12
@@ -88,15 +130,23 @@ ros2 launch boids_swarm pursuit.launch.py strategy:=sweep env:=pillar trails:=tr
 # 感測模型 + 資訊分享(窄 FOV 最能看出群體共知)
 ros2 launch boids_swarm pursuit.launch.py perception:=sensor strategy:=auto
 
-# 你親自當 2× 目標(方向鍵,↑ 衝刺)
+# 你親自當高速目標(方向鍵,↑ 衝刺)
 ros2 launch boids_swarm pursuit.launch.py game_mode:=human strategy:=blockade
 
 # 存 PNG 逐格檢查(視窗看不清時)
 ros2 launch boids_swarm pursuit.launch.py strategy:=auto env:=pillar \
     screenshot_dir:=/tmp/frames screenshot_period:=5.0
+
+# 無畫面基準測試(同種子、有界快轉;跑完自動退出並印 SUMMARY)
+ros2 launch boids_swarm pursuit.launch.py headless:=true episodes_max:=6 \
+    seed:=11 strategy:=blockade time_limit:=90.0
 ```
 
-測試:`python3 -m pytest src/boids_swarm/test/ -q`(90 個純數學單元測試)
+測試(純數學,**不需要 ROS 也不需要 pygame**,乾淨 clone 即可跑):
+
+```bash
+cd ros2_ws && python3 -m pytest -q      # 135 passed
+```
 
 ---
 
@@ -117,30 +167,36 @@ ros2 launch boids_swarm pursuit.launch.py strategy:=auto env:=pillar \
 ## 檔案地圖
 
 ```
-final_project/
-├── PROJECT.md                    # 本檔(專案總覽)
+boids-swarm-pursuit/
+├── README.md                     # 本檔(專案總覽);PROJECT.md 是它的 symlink
 ├── log.md                        # 三階段完整開發日誌 + 坑清單
+├── presentation_script.md        # 簡報逐字稿
+├── LICENSE                       # MIT
 ├── SDD/                          # 三份設計文件 v2/v3/v4
-└── ros2_ws/src/
-    ├── boids_turtlesim/          # v2 turtlesim 群聚
-    └── boids_swarm/              # v3+v4 主套件
-        ├── boids_swarm/
-        │   ├── pygame_sim_node.py     # 世界:物理/渲染/感測合成/區域/收縮
-        │   ├── boid_controller_node.py# 群聚+追擊+追蹤+搜尋(每 agent)
-        │   ├── target_controller_node.py # 逃者(reactive/adaptive)
-        │   ├── perception.py          # 感測器模型(FOV/遮蔽/雜訊/丟失)
-        │   ├── tracking.py            # 航跡濾波+關聯+繞圈偵測
-        │   ├── comms.py               # 距離限制網狀信念傳播
-        │   ├── world_gen.py           # 種子決定式程序化地圖
-        │   ├── game.py                # 捕獲條件+計分
-        │   ├── geometry.py            # 向量/角度/運動學轉換
-        │   └── behaviors/
-        │       ├── flocking.py        # 分離/對齊/凝聚/邊界/漫遊/搜尋
-        │       ├── pursuit.py         # 全部追捕策略 + auto + 終端撲擊
-        │       └── evasion.py         # ReactiveEvader / AdaptiveEvader
-        ├── launch/                # flocking / pursuit launch
-        ├── config/params.yaml     # 所有可調參數(runtime 可改)
-        └── test/                  # 90 個單元測試
+└── ros2_ws/
+    ├── pytest.ini                # 讓單元測試在乾淨 clone 直接可跑
+    └── src/
+        ├── boids_turtlesim/      # v2 turtlesim 群聚
+        └── boids_swarm/          # v3–v5 主套件
+            ├── boids_swarm/
+            │   ├── pygame_sim_node.py       # 世界:物理/渲染/感測合成/區域/收縮
+            │   ├── boid_controller_node.py  # 群聚+追擊+追蹤+搜尋(每 agent)
+            │   ├── target_controller_node.py# 逃者(reactive/adaptive)
+            │   ├── perception.py            # 感測器模型(FOV/遮蔽/雜訊/丟失)
+            │   ├── tracking.py              # 航跡濾波+關聯+繞圈偵測
+            │   ├── comms.py                 # 距離限制網狀信念傳播
+            │   ├── ui.py                    # 控制面板 widget(純數學,無 pygame import)
+            │   ├── param_bridge.py          # 面板→N 個 controller 的參數扇出
+            │   ├── world_gen.py             # 種子決定式程序化地圖
+            │   ├── game.py                  # 捕獲條件+計分
+            │   ├── geometry.py              # 向量/角度/運動學轉換
+            │   └── behaviors/
+            │       ├── flocking.py          # 分離/對齊/凝聚/邊界/漫遊/搜尋
+            │       ├── pursuit.py           # 全部追捕策略 + auto + 終端撲擊
+            │       └── evasion.py           # Reactive / Adaptive / Nav2(stub)
+            ├── launch/                      # flocking / pursuit launch
+            ├── config/params.yaml           # 所有可調參數(runtime 可改)
+            └── test/                        # 135 個單元測試
 ```
 
 詳細指令與參數見套件的 [README](ros2_ws/src/boids_swarm/README.md)。

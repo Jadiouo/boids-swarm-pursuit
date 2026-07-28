@@ -1,6 +1,7 @@
 """Target evasion brains (SDD v3 §4.3, §6.3) — strategy pattern.
 
 ReactiveEvader: reverse-Boids + gap-seeking + wall/obstacle avoidance.
+AdaptiveEvader: utility selector over a behavior repertoire (v4 D / M14).
 Nav2Evader: M7 adapter stub (see §6) — the sim already publishes the
 plumbing contract; wiring Nav2 is a config exercise on top of this.
 """
@@ -85,9 +86,14 @@ class AdaptiveEvader:
     An arms-race target: instead of one hard-wired flee rule, it scores a
     repertoire of behaviors each cycle by expected survival utility given
     the threat geometry (nearest pursuer, encirclement completeness, wall
-    distance, obstacle cover, stamina) and picks the argmax — with
-    hysteresis so it doesn't dither. Interpretable weighted heuristic, not
-    a learned policy (D.2), so it stays tunable and debuggable.
+    distance, obstacle cover) and picks the argmax — with hysteresis so it
+    doesn't dither. Interpretable weighted heuristic, not a learned policy
+    (D.2), so it stays tunable and debuggable.
+
+    Note: stamina is NOT an input here. The sim owns the stamina state and
+    the target_controller already gates sprinting on `panic_distance`
+    (§4.2), so the selector only picks a *direction*; feeding stamina in
+    would need a new sim→controller topic (not wired).
 
     Composes ReactiveEvader for the shared clearance/threat geometry.
     `.mode` exposes the last choice for logging (D acceptance).
@@ -101,7 +107,6 @@ class AdaptiveEvader:
         self.bmin, self.bmax = bounds_min, bounds_max
         self.obstacles = list(obstacles)
         self.mode = 'retreat'
-        self._stamina = 1.0
 
     # --- situational features ------------------------------------------
     def _nearest(self, xy, pursuers):
@@ -144,17 +149,34 @@ class AdaptiveEvader:
         return (math.cos(best_mid), math.sin(best_mid))
 
     def _shield_dir(self, xy, nearest):
-        """Direction that puts the nearest obstacle between self and the
-        nearest pursuer."""
+        """Direction that puts an obstacle between self and the nearest
+        pursuer.
+
+        Only obstacles on the side *away* from the pursuer qualify — running
+        at the obstacle the pursuer is standing next to hands it the kill.
+        Among those, take the closest. Returns None when no obstacle can
+        actually shield, so the selector drops the option instead of
+        scoring a direction that does the opposite of its name.
+        """
         if not self.obstacles or nearest is None:
             return None
-        ox, oy, _r = min(self.obstacles,
-                         key=lambda o: math.hypot(o[0] - xy[0], o[1] - xy[1]))
-        return unit(ox - xy[0], oy - xy[1])
+        px, py = unit(nearest[0] - xy[0], nearest[1] - xy[1])
+        if (px, py) == (0.0, 0.0):
+            return None                    # pursuer on top of us: no bearing
+        best, best_d = None, float('inf')
+        for (ox, oy, _r) in self.obstacles:
+            dx, dy = ox - xy[0], oy - xy[1]
+            d = math.hypot(dx, dy)
+            if d < 1e-9:
+                continue
+            if (dx / d) * px + (dy / d) * py >= 0.0:
+                continue                   # obstacle lies toward the pursuer
+            if d < best_d:
+                best, best_d = (dx / d, dy / d), d
+        return best
 
     # --- the selector ---------------------------------------------------
-    def compute(self, self_xy, self_theta, pursuers, stamina=1.0):
-        self._stamina = stamina
+    def compute(self, self_xy, self_theta, pursuers):
         nearest, nd = self._nearest(self_xy, pursuers)
         enc = self._encirclement(self_xy, pursuers)
 

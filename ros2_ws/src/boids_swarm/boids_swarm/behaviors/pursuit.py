@@ -214,7 +214,6 @@ def corner_trap(ctx, params):
     if not ctx.circling:
         return encircle(ctx, params)
     ahead = _target_angle(ctx) + ctx.circ_dir * 0.9
-    aim = (ctx.center[0] + math.cos(ahead), ctx.center[1] + math.sin(ahead))
     nxt = min(_corners(params),
               key=lambda c: math.hypot(c[0] - ctx.center[0] - math.cos(ahead)
                                        * ctx.orbit_radius,

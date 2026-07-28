@@ -25,14 +25,15 @@ def launch_setup(context):
     actions = [Node(package='boids_swarm', executable='pygame_sim',
                     name='pygame_sim', output='screen',
                     parameters=[params_file, common, {
-                        'headless': headless.lower() == 'true',
-                        # flocking demo reads better with classic weights
-                        }])]
+                        'headless': headless.lower() == 'true'}])]
     for i in range(n):
         actions.append(
             Node(package='boids_swarm', executable='boid_controller',
                  namespace=f'agent{i}', name='boid_controller',
                  output='screen',
+                 # params.yaml tunes alignment/cohesion DOWN for pursuit
+                 # (0.2); the pure-flocking demo reads better with the
+                 # classic weights, so override them here.
                  parameters=[params_file, common,
                              {'w_alignment': 1.0, 'w_cohesion': 1.0,
                               'use_sim_time': True}]))

@@ -26,6 +26,9 @@ from .game import (Scoreboard, TagHealth, capture_escape_blocked,
                    capture_hull)
 from . import perception
 from . import comms
+from . import ui
+from .behaviors.pursuit import STRATEGIES
+from .param_bridge import ParamBridge
 from .world_gen import WorldGenerator
 
 BG = (16, 20, 32)
@@ -115,6 +118,25 @@ class PygameSimNode(Node):
         self.declare_parameter('comms_enabled', True)
         self.declare_parameter('comm_range', 8.0)
         self.declare_parameter('comm_jitter', 0.15)        # relay noise
+        # --- in-window control panel (v5 M15) ---
+        self.declare_parameter('ui_enabled', True)
+        self.declare_parameter('panel_px', 280)
+        # Display-only name of the environment. env_type is forced to
+        # 'custom' when the launch pre-generates the layout, so it cannot
+        # be used to tell the user which env they actually asked for.
+        self.declare_parameter('env_label', '')
+        # Mirrors of parameters that actually LIVE on other nodes
+        # (boid_controller x N, target_controller). The panel is immediate
+        # mode and needs a value to draw every frame; querying N remote
+        # nodes per frame would be absurd, so the sim keeps a local copy and
+        # ParamBridge writes both sides on every edit. params.yaml uses the
+        # `/**` wildcard, so these pick up the same defaults the real owners
+        # do — and pursuit.launch.py forwards the launch args here too.
+        self.declare_parameter('pursuit_strategy', 'auto')
+        self.declare_parameter('w_pursuit', 2.0)
+        self.declare_parameter('commit_distance', 2.5)
+        self.declare_parameter('ring_radius_start', 3.0)
+        self.declare_parameter('evader', 'reactive')
         self.add_on_set_parameters_callback(self._on_params)
 
         self.n = int(self.get_parameter('num_agents').value)
@@ -128,7 +150,7 @@ class PygameSimNode(Node):
 
         # Procedural layout (v4 M13): env_type derives the world from the
         # seed so strategy benchmarks stay fair; 'custom' uses the params.
-        env_type = self.get_parameter('env_type').value
+        env_type = self.env_type = self.get_parameter('env_type').value
         self.shrink_rate = float(self.get_parameter('shrink_rate').value)
         if env_type != 'custom':
             layout = WorldGenerator(
@@ -154,8 +176,13 @@ class PygameSimNode(Node):
         self.target_body_r = float(
             self.get_parameter('target_body_radius').value)
         self.running = True
+        self.paused = False                       # panel PAUSE button
         self.keys = None                          # set by run loop (human mode)
         self._next_shot = float(self.get_parameter('screenshot_period').value)
+        # A panel needs a window and a mouse, so it is off when headless.
+        self.ui_on = (bool(self.get_parameter('ui_enabled').value)
+                      and not self.headless)
+        self.panel = None                         # built in setup_display
 
         # --- entities ---
         self.agents = [Entity() for _ in range(self.n)]
@@ -211,6 +238,13 @@ class PygameSimNode(Node):
             self.create_subscription(
                 Twist, '/target/cmd_vel',
                 lambda m: self._on_cmd(m, self.target), 1)
+
+        # Panel edits are enqueued on the render thread and flushed here, on
+        # the executor thread, so all rclpy work stays single-threaded.
+        self.bridge = None
+        if self.ui_on:
+            self.bridge = ParamBridge(self, self.n, self.target_enabled)
+            self.create_timer(0.05, self.bridge.pump)
 
         self._spawn_all()
         self.score.start_episode()
@@ -414,12 +448,17 @@ class PygameSimNode(Node):
         if self.state == 'banner':
             self.banner_t -= dt
             if self.banner_t <= 0.0:
-                if self._p('auto_reset'):
+                em = int(self._p('episodes_max'))
+                done = bool(em) and self.score.episode >= em
+                if self._p('auto_reset') and not done:
                     self._spawn_all()
                     self.score.start_episode()
                     self.state = 'running'
-                em = int(self._p('episodes_max'))
-                if em and self.score.episode > em:
+                else:
+                    # Either the requested episode count is complete, or
+                    # auto_reset is off and there is nothing left to run —
+                    # end the run instead of sitting on the banner forever
+                    # (the old code only exited via the auto_reset path).
                     self._final_summary()
                     self.running = False
             return
@@ -467,7 +506,9 @@ class PygameSimNode(Node):
         s = self.score
         avg = (sum(s.capture_times) / len(s.capture_times)
                if s.capture_times else float('nan'))
-        line = (f'SUMMARY episodes={s.episode - 1} captures={s.captures} '
+        # `episode` is now the count actually RUN: the terminal episode no
+        # longer starts a new one before the summary fires.
+        line = (f'SUMMARY episodes={s.episode} captures={s.captures} '
                 f'timeouts={s.timeouts} avg_capture_t={avg:.2f}s')
         self.get_logger().info(line)
         print(line, flush=True)
@@ -578,14 +619,64 @@ class PygameSimNode(Node):
             os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
         pygame.init()
         px = int(self._p('window_px'))
-        self.screen = pygame.display.set_mode((px, px))
+        self.arena_px = px
+        panel_px = 0
+        win_h = px
+        if self.ui_on:
+            panel_px = int(self._p('panel_px'))
+            self.panel = ui.Panel(
+                ui.build_rows(strategies=tuple(STRATEGIES),
+                              capture_modes=('hull', 'escape_blocked', 'tag'),
+                              # nav2 is a stub that raises — keep it out of a
+                              # control the user can click by accident
+                              evaders=('reactive', 'adaptive')),
+                panel_px)
+            # Lay out first: a tall panel decides the window height, so a
+            # small window_px doesn't clip the bottom controls away.
+            win_h = max(px, self.panel.layout(px, 0))
+        self.screen = pygame.display.set_mode((px + panel_px, win_h))
         pygame.display.set_caption('boids_swarm — cooperative pursuit')
         self.font = pygame.font.SysFont('monospace', 15)
         self.big_font = pygame.font.SysFont('monospace', 34, bold=True)
+        self.fonts = {
+            'body': pygame.font.SysFont('monospace', 15),
+            'small': pygame.font.SysFont('monospace', 13),
+            'bold': pygame.font.SysFont('monospace', 13, bold=True),
+        }
         self.scale = px / self.world
 
     def _to_px(self, x, y):
         return int(x * self.scale), int((self.world - y) * self.scale)
+
+    # ------------------------------------------------------------ panel
+    def _ui_value(self, scope, key):
+        """Live value for a panel row. AGENTS/TARGET rows read the local
+        mirror (see the declare block); ACTION rows report toggle state."""
+        if scope == ui.ACTION:
+            return self.paused if key == 'toggle_pause' else False
+        if key == 'perception':
+            return self.perception_mode
+        if key == 'env':
+            return self._p('env_label') or self.env_type
+        if key == 'agents':
+            return self.n
+        return self._p(key)
+
+    def _ui_apply(self, change):
+        if change is None:
+            return
+        scope, key, value = change
+        if scope == ui.ACTION:
+            if key == 'toggle_pause':
+                self.paused = not self.paused
+            elif key == 'reset_episode':
+                # A manual do-over restarts the CURRENT episode rather than
+                # counting a new one, so the panel can't inflate the score.
+                self._spawn_all()
+                self.score.restart_episode()
+                self.state = 'running'
+            return
+        self.bridge.request(scope, key, value)
 
     def handle_pygame_events(self):
         import pygame
@@ -593,6 +684,14 @@ class PygameSimNode(Node):
             if ev.type == pygame.QUIT or (
                     ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
                 self.running = False
+            elif self.panel is None:
+                continue
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                self._ui_apply(self.panel.mouse_down(ev.pos, self._ui_value))
+            elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
+                self.panel.mouse_up()
+            elif ev.type == pygame.MOUSEMOTION:
+                self._ui_apply(self.panel.mouse_move(ev.pos))
         self.keys = pygame.key.get_pressed()
 
     def _triangle(self, e: Entity, size_px, color):
@@ -676,6 +775,13 @@ class PygameSimNode(Node):
             tip = self.font.render(
                 'HUMAN TARGET: arrows to drive (UP sprint)', True, HUD)
             self.screen.blit(tip, (8, int(self.world * self.scale) - 22))
+        if self.paused:
+            txt = self.big_font.render('PAUSED', True, (255, 220, 90))
+            self.screen.blit(txt, (self.arena_px // 2 - txt.get_width() // 2,
+                                   self.arena_px // 2 - 60))
+        if self.panel is not None:
+            self.panel.draw(pygame, self.screen, self.arena_px, 0,
+                            self.fonts, self._ui_value)
         if shot_due:
             os.makedirs(shot_dir, exist_ok=True)
             pygame.image.save(
@@ -713,9 +819,13 @@ def main(args=None):
         while rclpy.ok() and node.running:
             clock.tick(pace)              # real time; headless: bounded FF
             node.handle_pygame_events()
-            node.sim_time += dt
-            node.step_physics(dt)
-            node.check_capture_and_score(dt)
+            if not node.paused:
+                node.sim_time += dt
+                node.step_physics(dt)
+                node.check_capture_and_score(dt)
+            # Keep publishing while paused: /clock stops advancing, so the
+            # controllers' sim-time timers freeze with the world instead of
+            # spinning on a stale pose and tripping their pose_timeout.
             node.publish_states()
             node.render()
             frames += 1

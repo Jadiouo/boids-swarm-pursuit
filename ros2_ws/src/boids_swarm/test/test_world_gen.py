@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from boids_swarm.world_gen import WorldGenerator, Layout
+from boids_swarm.world_gen import WorldGenerator
 
 
 def test_seed_determinism():

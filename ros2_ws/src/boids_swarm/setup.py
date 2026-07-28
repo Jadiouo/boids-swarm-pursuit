@@ -7,7 +7,7 @@ package_name = 'boids_swarm'
 
 setup(
     name=package_name,
-    version='0.3.0',
+    version='0.5.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -22,7 +22,7 @@ setup(
     zip_safe=True,
     maintainer='lexho',
     maintainer_email='lexho2005@gmail.com',
-    description='Boids swarm cooperative pursuit game (SDD v3): '
+    description='Boids swarm cooperative pursuit game (SDD v3+v4): '
                 'pygame world + ROS 2 per-agent controllers',
     license='MIT',
     tests_require=['pytest'],
