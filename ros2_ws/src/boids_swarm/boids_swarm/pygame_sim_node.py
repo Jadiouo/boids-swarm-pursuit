@@ -36,6 +36,7 @@ from .game import (Scoreboard, TagHealth, capture_escape_blocked,
 from . import perception
 from . import comms
 from . import stack_config
+from . import spawn as spawn_mod
 from . import stack_supervisor
 from . import ui
 from .behaviors.pursuit import STRATEGIES
@@ -136,7 +137,20 @@ class PygameSimNode(Node):
         self.declare_parameter('shrink_min', 4.0)         # stop shrinking here
         self.declare_parameter('zones', [0.0])            # flat [x,y,r,kind,...]
         self.declare_parameter('render_trails', False)
-        self.declare_parameter('agent_radius_px', 6)
+        # Triangle size on screen. 0 = auto: the body size in world units
+        # scaled by the arena's px/m, floored at a ui_scale-based minimum,
+        # so agents stay readable on big windows. >0 forces that many px.
+        self.declare_parameter('agent_radius_px', 0)
+        # --- round start fairness (UI defaults: spawn_safe on, grace 1.5) ---
+        # spawn_safe: draw the target's start position so it is at least
+        # spawn_min_clearance from every boid (spawn.py); the legacy spawn
+        # falls back to the arena centre when that fails. capture_grace:
+        # seconds from the round start with no capture check. Both default
+        # off here so headless / ui:=false runs (pre-registered experiments)
+        # keep their exact seeded behaviour; the UI launch turns them on.
+        self.declare_parameter('spawn_safe', False)
+        self.declare_parameter('spawn_min_clearance', 6.0)
+        self.declare_parameter('capture_grace', 0.0)
         # Physical collision radius per entity (v4). A larger target can't
         # squeeze through the wall-gap chokepoints that boids slip through
         # (SDD C.1: "boids fit but the larger target must detour").
@@ -454,7 +468,19 @@ class PygameSimNode(Node):
         if self.target_enabled:
             swarm = [(a.x, a.y) for a in self.agents]
             t = self.target
-            t.x, t.y = self._free_pos(clear_of=swarm, min_dist=6.0)
+            if self._p('spawn_safe'):
+                bnds = (self.cur_min[0], self.cur_min[1],
+                        self.cur_max[0], self.cur_max[1])
+                t.x, t.y, ok, clr = spawn_mod.choose_target_spawn(
+                    swarm, self.obstacles, self.world, self.rng,
+                    float(self._p('spawn_min_clearance')), bounds=bnds)
+                if not ok:
+                    self.get_logger().warn(
+                        f'spawn_safe: no start >= '
+                        f'{self._p("spawn_min_clearance"):.1f} m from the '
+                        f'boids; using the best one ({clr:.1f} m)')
+            else:
+                t.x, t.y = self._free_pos(clear_of=swarm, min_dist=6.0)
             t.theta = self.rng.uniform(-math.pi, math.pi)
             t.v = t.w = 0.0
             t.cmd = (0.0, 0.0)
@@ -649,6 +675,8 @@ class PygameSimNode(Node):
         if not self.target_enabled:
             return
 
+        if self.score.t_episode < self._p('capture_grace'):
+            return                       # grace: nothing can end the round
         t_xy = (self.target.x, self.target.y)
         mode = self._p('capture_mode')
         d_cap = self._p('d_capture')
@@ -1150,7 +1178,20 @@ class PygameSimNode(Node):
                 self._ui_apply(self.panel.mouse_move(ev.pos))
         self.keys = pygame.key.get_pressed()
 
-    def _triangle(self, e: Entity, size_px, color):
+    def _agent_px(self):
+        """Boid triangle 'radius' (tip distance from centre) in px.
+
+        Auto (agent_radius_px = 0): 0.25 m of arena (a bit over the 0.15 m
+        body, so it reads as an arrow) times px/m, never below 5 px per
+        ui_scale. 990 px arena / 20 m, ui_scale 1.5 -> ~12 px (triangle
+        ~20 px long); 800 px, ui_scale 1.0 -> 10 px."""
+        fixed = int(self._p('agent_radius_px'))
+        if fixed > 0:
+            return fixed
+        return max(int(round(0.25 * self.scale)),
+                   int(round(5.0 * self.ui_scale)))
+
+    def _triangle(self, e: Entity, size_px, color, outline=None):
         import pygame
         cx, cy = self._to_px(e.x, e.y)
         pts = []
@@ -1159,6 +1200,9 @@ class PygameSimNode(Node):
             r = size_px if ang == 0.0 else size_px * 0.75
             pts.append((cx + r * math.cos(a), cy - r * math.sin(a)))
         pygame.draw.polygon(self.screen, color, pts)
+        if outline is not None:
+            pygame.draw.polygon(self.screen, outline, pts,
+                                max(1, int(round(self.ui_scale))))
 
     def _blit_centered(self, font, text, color, cy, max_w=None):
         """Word-wrapped, horizontally centred (on the arena) text block
@@ -1213,30 +1257,38 @@ class PygameSimNode(Node):
         for (cx, cy, r) in self.obstacles:
             pygame.draw.circle(self.screen, OBSTACLE, self._to_px(cx, cy),
                                int(r * self.scale))
+        u = self.ui_scale
         if self._p('render_trails'):
+            tw = max(1, int(round(1.2 * u)))
             for e, col in ([(a, TRAIL_BOID) for a in self.agents]
                            + ([(self.target, TRAIL_TGT)]
                               if self.target_enabled else [])):
                 if len(e.trail) > 1:
                     pygame.draw.lines(
                         self.screen, col, False,
-                        [self._to_px(x, y) for (x, y) in e.trail], 1)
-        size = int(self._p('agent_radius_px'))
+                        [self._to_px(x, y) for (x, y) in e.trail], tw)
+        size = self._agent_px()
         for a in self.agents:
             self._triangle(a, size, BOID)
         if self.target_enabled:
             tpx = self._to_px(self.target.x, self.target.y)
-            self._triangle(self.target, int(size * 1.6), TARGET)
-            pygame.draw.circle(self.screen, (70, 45, 45), tpx,
-                               int(self._p('d_capture') * self.scale * 0.5), 1)
+            # capture circle = the real d_capture reach (was half of it)
+            pygame.draw.circle(
+                self.screen, (120, 70, 65), tpx,
+                int(self._p('d_capture') * self.scale),
+                max(1, int(round(u))))
+            self._triangle(self.target, int(size * 1.5), TARGET,
+                           outline=(255, 230, 210))
 
         # --- HUD (§4.6) --- two lines, wrapped to the arena, then bars
         s = self.score
-        u = self.ui_scale
+        grace = (self._p('capture_grace') - s.t_episode
+                 if self.state == 'running' else 0.0)
         hud = (f'ep {s.episode}  t={s.t_episode:6.1f}s  '
                f'captures {s.captures}/{max(s.episode - 1, 0)}',
                f'close {self.n_close}/{int(self._p("capture_k"))}  '
-               f'min_d {s.min_pairwise:.2f}')
+               f'min_d {s.min_pairwise:.2f}'
+               + (f'   GRACE {grace:.1f}s' if grace > 0.0 else ''))
         m = int(round(8 * u))
         y = int(round(6 * u))
         for ln in hud:
@@ -1289,11 +1341,12 @@ def main(args=None):
     node = PygameSimNode()
     node.setup_display()
     # Never leave the stack's processes behind: atexit covers a normal or
-    # exception exit, the handler turns SIGTERM/SIGHUP into a clean loop
-    # exit (-> finally -> shutdown). (SIGKILL is covered on the stack's
-    # side: stack_supervisor.watch_parent.)
+    # exception exit, the handler turns SIGTERM/SIGHUP/SIGINT into a clean
+    # loop exit (-> finally -> shutdown). SIGINT gets our own handler too,
+    # so it does not depend on what rclpy / SDL installed. (SIGKILL is
+    # covered on the stack's side: stack_supervisor.watch_parent.)
     atexit.register(node.supervisor.shutdown)
-    for sig in (signal.SIGTERM, signal.SIGHUP):
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
         signal.signal(sig, lambda *_: setattr(node, 'running', False))
     node.start_initial_stack()
     # Callbacks run in a background executor thread: rclpy.spin_once in

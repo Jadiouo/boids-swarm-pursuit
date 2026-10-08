@@ -71,6 +71,13 @@ AGENT_LIVE = ('pursuit_strategy', 'w_pursuit', 'lead_time',
               'radio_range', 'sighting_timeout')
 TARGET_LIVE = ('target_speed_multiplier', 'target_omega_max')
 
+# Round-start fairness the window (UI / stack_managed) turns on for every
+# mode: the legacy spawn drops the target inside the swarm for about half
+# the seeds (spawn.py). Headless and ui:=false keep the sim defaults
+# (off / 0) so pre-registered experiments stay reproducible.
+UI_SIM_DEFAULTS = {'spawn_safe': True, 'spawn_min_clearance': 6.0,
+                   'capture_grace': 1.5}
+
 NAV2_WARMUP_S = 6.0
 MIN_AGENTS, MAX_AGENTS = 2, 24
 

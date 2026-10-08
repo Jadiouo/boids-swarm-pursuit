@@ -82,7 +82,7 @@
     auto_reset: true
     episodes_max: 0               # 0 = endless
     render_trails: false
-    agent_radius_px: 6
+    agent_radius_px: 0          # 0 = auto (scales with arena px per metre and ui_scale)
     window_px: 800
     fps: 60
     headless: false

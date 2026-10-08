@@ -44,7 +44,7 @@ def test_headless_and_ui_off_launch_is_unchanged(case):
 
 # keys that legitimately differ between the two launch paths
 _SIM_ONLY = ('headless', 'ui_enabled', 'ui_scale', 'stack_managed',
-             'stack_launch_args')
+             'stack_launch_args', *stack_config.UI_SIM_DEFAULTS)
 
 
 def _strip_sim(act):
@@ -72,6 +72,8 @@ def test_panel_path_starts_the_same_nodes_via_the_stack_launch(case):
         if isinstance(p, dict):
             flat.update(p)
     assert flat['stack_managed'] is True
+    for k, v in stack_config.UI_SIM_DEFAULTS.items():     # window: fair start
+        assert flat[k] == v, k
     stack_launch_args = json.loads(flat['stack_launch_args'])
     assert set(stack_launch_args) == set(stack_config.STACK_LAUNCH_KEYS)
     gold_sim, *gold_rest = _GOLD[case]
@@ -132,3 +134,24 @@ def test_unspecified_evader_is_smart_only_in_the_panel():
         if isinstance(p, dict):
             flat.update(p)
     assert json.loads(flat['stack_launch_args'])['evader'] == 'reactive'
+
+
+def test_round_start_fairness_is_off_without_the_window():
+    for ui_flags in ({'headless': 'true'}, {'ui': 'false'}):
+        sim = record('pursuit.launch.py', ui_flags)[0]
+        flat = {}
+        for p in sim['parameters']:
+            if isinstance(p, dict):
+                flat.update(p)
+        for k in stack_config.UI_SIM_DEFAULTS:
+            assert k not in flat, (ui_flags, k)
+
+
+def test_round_start_args_override_explicitly():
+    sim = record('pursuit.launch.py', {
+        'headless': 'true', 'spawn_safe': 'true', 'capture_grace': '1.5'})[0]
+    flat = {}
+    for p in sim['parameters']:
+        if isinstance(p, dict):
+            flat.update(p)
+    assert flat['spawn_safe'] is True and flat['capture_grace'] == 1.5
