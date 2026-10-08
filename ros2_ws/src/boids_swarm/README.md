@@ -99,6 +99,13 @@ ros2 launch boids_swarm pursuit.launch.py ui:=false             # arena only, no
 | **Sensor + ROS relay** | sensor | ros | smart (or reactive) | each boid senses only through its own FOV/range and shares sightings one hop over a ROS topic |
 | **Nav2 target** | sensor | ros | nav2 | the target flees along Nav2-planned paths; ~5-8 s warm-up while Nav2 activates |
 
+`smart` is the panel's default evader (Baseline and Sensor + ROS relay); a
+headless or `ui:=false` launch still defaults to `reactive`, so experiment
+runs stay reproducible, and an explicit `evader:=...` always wins. In the
+`evader_compare` sanity run (not pre-registered) `smart` hugs walls less but is
+captured faster in `obstacle_field`; see
+[artifacts/evader-compare-2026-10-08/README.md](../../../artifacts/evader-compare-2026-10-08/README.md).
+
 A click stops the old controllers, resets the episode and score, and starts the
 new ones; the **window never closes** and the world is held (a dimmed arena with
 a countdown) until the new stack is up. Status shows

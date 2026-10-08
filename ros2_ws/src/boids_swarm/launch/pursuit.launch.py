@@ -15,6 +15,7 @@ from launch.actions import (
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+from boids_swarm import stack_config
 from boids_swarm.stack_config import STACK_LAUNCH_KEYS
 from boids_swarm.stack_launch import (
     params_file_path, resolve_world, stack_actions)
@@ -30,6 +31,9 @@ def launch_setup(context):
                      'shared_sighting_qos_depth', 'oracle_max_hops',
                      'relay_log_dir', 'time_scale', 'nav2_config', 'warmup',
                      'pursuer_delay')}
+    ui_default_evader = cfg['evader'] == ''
+    if ui_default_evader:
+        cfg['evader'] = 'reactive'          # headless / ui:=false default
     if cfg['sharing_mode'] == 'ros' and cfg['perception'] != 'sensor':
         raise ValueError('sharing_mode=ros requires perception=sensor')
     # Procedural env (v4 M13): generate the layout in the launch so the sim
@@ -70,6 +74,12 @@ def launch_setup(context):
     # window never closes. Headless and ui:=false keep launching everything
     # directly, exactly as before (experiment scripts depend on that).
     managed = ui_on and not headless
+    if managed and ui_default_evader:
+        # Only the panel path defaults to the smart evader (when installed);
+        # headless / ui:=false stay reactive for experiment reproducibility.
+        cfg['evader'] = stack_config.resolve_evader(
+            stack_config.PREFERRED_EVADER[stack_config.BASELINE],
+            stack_config.available_evaders())
     if managed:
         sim_extra['stack_managed'] = True
         sim_extra['stack_launch_args'] = json.dumps(
@@ -121,8 +131,10 @@ def generate_launch_description():
         DeclareLaunchArgument('game_mode', default_value='ai',
                               description='ai|human'),
         DeclareLaunchArgument(
-            'evader', default_value='reactive',
-            description='reactive|adaptive (v4 M14)|smart (geodesic escape '
+            'evader', default_value='',
+            description='default: smart in the control-panel window, '
+                        'reactive for headless / ui:=false. '
+                        'reactive|adaptive (v4 M14)|smart (geodesic escape '
                         'planner, no Nav2)|nav2 (M7: also starts the '
                         'Nav2 stack for the target)'),
         DeclareLaunchArgument('nav2_config', default_value='nav2_target.yaml',

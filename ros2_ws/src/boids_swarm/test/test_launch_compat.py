@@ -58,7 +58,10 @@ def _strip_sim(act):
 
 @pytest.mark.parametrize('case', sorted(CASES))
 def test_panel_path_starts_the_same_nodes_via_the_stack_launch(case):
-    ui_args = dict(CASES[case], ui='true', headless='false')
+    # The panel path defaults an unspecified evader to smart (see the test
+    # below); pin it so this stays an equivalence check against the golden.
+    ui_args = {'evader': 'reactive', **CASES[case],
+               'ui': 'true', 'headless': 'false'}
     acts = record('pursuit.launch.py', ui_args)
     # the panel path launches the window-owning sim and nothing else
     assert len(acts) == 1 and acts[0]['name'] == 'pygame_sim'
@@ -98,3 +101,33 @@ def test_stack_launch_carries_live_params_into_controllers():
     boid = next(a for a in acts if a['name'] == 'boid_controller')
     assert tgt['parameters'][-1] == {'target_omega_max': 0.9}
     assert boid['parameters'][-1] == {'w_cohesion': 1.25}
+
+
+def _evader_of(acts):
+    for a in acts:
+        for p in a['parameters']:
+            if isinstance(p, dict) and 'evader' in p:
+                return p['evader']
+    return None
+
+
+def test_unspecified_evader_is_smart_only_in_the_panel():
+    smart = 'smart' in stack_config.available_evaders()
+    ui = record('pursuit.launch.py', {'ui': 'true', 'headless': 'false'})
+    flat = {}
+    for p in ui[0]['parameters']:
+        if isinstance(p, dict):
+            flat.update(p)
+    got = json.loads(flat['stack_launch_args'])['evader']
+    assert got == ('smart' if smart else 'reactive')
+    # headless / ui:=false: unchanged (golden covers the full node set)
+    assert _evader_of(record('pursuit.launch.py', {'ui': 'false'})) \
+        == 'reactive'
+    # an explicit choice always wins in the panel path
+    ui = record('pursuit.launch.py', {'ui': 'true', 'headless': 'false',
+                                      'evader': 'reactive'})
+    flat = {}
+    for p in ui[0]['parameters']:
+        if isinstance(p, dict):
+            flat.update(p)
+    assert json.loads(flat['stack_launch_args'])['evader'] == 'reactive'
