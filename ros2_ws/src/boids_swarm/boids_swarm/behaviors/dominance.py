@@ -61,6 +61,7 @@ class DominanceConfig:
     w_away: float = 0.4
     w_travel: float = 0.25
     w_gap: float = 0.8
+    w_wall: float = 1.0            # penalty for goals closer than goal_clearance
     room_radius: float = 3.0       # m window for the free-floor share
     clear_cap: float = 3.0
     hull_radius: float = 8.0       # pursuers this near the evader form the hull
@@ -231,6 +232,8 @@ def _score_all(emap, f, self_xy, pursuers_xy, cfg, empty):
     sc = (m_n + cfg.w_room * np.clip(room / 0.9, 0.0, 1.0)
           + cfg.w_clear * np.minimum(emap.clearance, cfg.clear_cap)
           / cfg.clear_cap
+          - cfg.w_wall * np.clip(1.0 - emap.clearance / cfg.goal_clearance,
+                                 0.0, 1.0)
           - cfg.w_travel * np.clip(np.where(np.isfinite(f.d_self), f.d_self,
                                             cfg.max_goal_dist)
                                    / cfg.max_goal_dist, 0.0, 1.0))

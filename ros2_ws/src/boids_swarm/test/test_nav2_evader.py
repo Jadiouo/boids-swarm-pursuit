@@ -353,3 +353,43 @@ def test_no_plan_requests_while_in_fallback_hold():
                                stale=False, nav2_ok=True) is False
     assert should_request_plan(now=20.0, fallback_until=11.0, changed=False,
                                stale=False, nav2_ok=False) is True
+
+
+# ------------------------------------------------- path hand-over smoothing
+def _line(x0, y0, x1, y1, n=40):
+    return [(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n)
+            for k in range(n + 1)]
+
+
+def test_smooth_start_leaves_aligned_paths_alone():
+    from boids_swarm.behaviors.nav2_evader import smooth_start
+    p = _line(5, 5, 12, 5)
+    assert smooth_start(p, (5, 5), 0.1) == p
+
+
+def _min_radius(pts):
+    r = 1e9
+    for a, b, c in zip(pts, pts[1:], pts[2:]):
+        ab, bc, ca = (math.dist(a, b), math.dist(b, c), math.dist(c, a))
+        area2 = abs((b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0]))
+        if area2 > 1e-9:
+            r = min(r, ab * bc * ca / (2 * area2))
+    return r
+
+
+@pytest.mark.parametrize('theta,path', [
+    (math.pi, _line(5, 5, 14, 5)),             # goal straight behind
+    (0.43, _line(8.6, 18.7, 5.95, 18.65)),     # near and behind: extended
+    (math.pi / 2, _line(5, 5, 12, 9)),         # 90 deg off
+    (-2.5, _line(5, 5, 5, 14)),
+])
+def test_smooth_start_is_a_feasible_arc_from_the_heading(theta, path):
+    from boids_swarm.behaviors.nav2_evader import smooth_start
+    out = smooth_start(path, path[0], theta)
+    d = (out[3][0] - out[0][0], out[3][1] - out[0][1])
+    first = math.atan2(d[1], d[0])
+    assert abs(math.atan2(math.sin(first - theta),
+                          math.cos(first - theta))) < 0.5
+    steps = [math.dist(a, b) for a, b in zip(out, out[1:])]
+    assert max(steps) < 0.6                    # continuous, no jumps
+    assert _min_radius(out[:len(out) // 2]) > 1.5   # turning part is drivable

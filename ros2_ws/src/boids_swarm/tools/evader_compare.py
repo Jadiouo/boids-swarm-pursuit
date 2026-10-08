@@ -87,7 +87,8 @@ def metrics(track, obstacles):
 OLD_SELECTOR = {
     'smart': ('SMART_PARAMS_JSON',
               {'smart_selector': 'sampled', 'smart_w_dom': 0.0}),
-    'nav2': ('NAV2_PARAMS_JSON', {'nav2_selector': 'sampled'}),
+    'nav2': ('NAV2_PARAMS_JSON', {'nav2_selector': 'sampled', 'nav2_smooth_start': 0,
+                      'nav2_planner_radius': 0.15}),
 }
 
 
@@ -150,7 +151,8 @@ def run_one(a):
            f'num_agents:={a.agents}', f'env:={a.env}', f'seed:={a.seed}',
            f'evader:={evader}', 'headless:=true', 'ui:=false',
            'episodes_max:=2', f'time_limit:={a.time_limit}',
-           'perception:=perfect', 'sharing_mode:=legacy'] + extra
+           'perception:=perfect', 'sharing_mode:=legacy'] + extra \
+        + a.launch_extra.split()
 
     class Rec(Node):
         def __init__(s):
@@ -282,6 +284,7 @@ def sweep(a):
                  '--agents', str(a.agents), '--time-limit', str(a.time_limit),
                  '--time-scale', a.time_scale,
                  '--smart-json', a.smart_json,
+                 '--launch-extra', a.launch_extra,
                  '--out', str(out / f'{e}_{env}_{s}.json')],
                 stdout=subprocess.DEVNULL)
             running[slot] = (p, (e, env, s))
@@ -415,6 +418,8 @@ def main():
     r.add_argument('--time-limit', type=float, default=30.0)
     r.add_argument('--time-scale', default='',
                    help='sim fast-forward (empty = sim default 4)')
+    r.add_argument('--launch-extra', default='',
+                   help='extra launch args, e.g. "spawn_safe:=true"')
     r.add_argument('--smart-json', default='',
                    help='JSON of smart_<field> overrides (tuning hook)')
     r.add_argument('--wall-timeout', type=float, default=150.0)
@@ -427,6 +432,7 @@ def main():
     s.add_argument('--time-limit', type=float, default=30.0)
     s.add_argument('--time-scale', default='')
     s.add_argument('--smart-json', default='')
+    s.add_argument('--launch-extra', default='')
     s.add_argument('--domain-base', type=int, default=170)
     s.add_argument('--jobs', type=int, default=6)
     s.add_argument('--out', required=True)

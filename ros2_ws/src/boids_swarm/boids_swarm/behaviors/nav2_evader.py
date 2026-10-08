@@ -23,7 +23,7 @@ import os
 import random
 from dataclasses import dataclass
 
-from ..geometry import clamp, to_twist
+from ..geometry import clamp, to_twist, unit, wrap_angle
 from . import dominance as dom
 from .evasion import ReactiveEvader
 
@@ -259,6 +259,76 @@ def plan_start(xy, bmin, bmax, obstacles, margin, reach=0.7):
     return best
 
 
+def smooth_start(path, pose_xy, theta, min_angle=0.5, step=0.2, radius=2.0):
+    """Make a freshly planned path leave the robot along its heading.
+
+    Pure pursuit (RPP) rotates in place when the carrot is more than
+    `rotate_to_heading_min_angle` (1.2 rad) off the heading, i.e. every goal
+    change that points away stops the target (v = 0) for a second or more.
+    If the path's first ~1.5 m is more than `min_angle` off `theta`, its head
+    is replaced by a turning circle of `radius` (about v/omega) that starts
+    on `theta` and a straight tangent into the path further on (a
+    Dubins-style CS curve), so the follower turns while moving. A path that
+    is too short to be joined is extended along its last direction. Aligned
+    paths are returned unchanged. path: [(x, y)]."""
+    if len(path) < 3:
+        return path
+    px, py = pose_xy
+    s_acc, look = 0.0, path[-1]
+    for a, b in zip(path, path[1:]):
+        s_acc += math.hypot(b[0] - a[0], b[1] - a[1])
+        if s_acc >= 1.5:
+            look = b
+            break
+    err = wrap_angle(math.atan2(look[1] - py, look[0] - px) - theta)
+    if abs(err) < min_angle:
+        return path
+    sgn = 1.0 if err > 0 else -1.0                 # +1 = turn left (CCW)
+    cx = px - sgn * radius * math.sin(theta)
+    cy = py + sgn * radius * math.cos(theta)
+    # join point: far enough along the path to be outside the circle
+    L = clamp(2.0 * radius + abs(err), 2.5, 8.0)
+    s_acc, j = 0.0, len(path) - 1
+    for k in range(1, len(path)):
+        s_acc += math.hypot(path[k][0] - path[k - 1][0],
+                            path[k][1] - path[k - 1][1])
+        if s_acc >= L:
+            j = k
+            break
+    q = path[j]
+    a, b = path[max(j - 1, 0)], path[min(j + 1, len(path) - 1)]
+    tq = unit(b[0] - a[0], b[1] - a[1], (math.cos(theta), math.sin(theta)))
+    ext = []
+    while math.hypot(q[0] - cx, q[1] - cy) < 1.15 * radius and len(ext) < 40:
+        q = (q[0] + step * tq[0], q[1] + step * tq[1])
+        ext.append(q)
+    d = math.hypot(q[0] - cx, q[1] - cy)
+    phi = math.atan2(q[1] - cy, q[0] - cx)
+    alpha = math.acos(min(1.0, radius / d))
+    tpt = None
+    for beta in (phi - sgn * alpha, phi + sgn * alpha):
+        tx, ty = cx + radius * math.cos(beta), cy + radius * math.sin(beta)
+        tan = (-sgn * math.sin(beta), sgn * math.cos(beta))
+        if (q[0] - tx) * tan[0] + (q[1] - ty) * tan[1] > 0.0:
+            tpt = (beta, tx, ty)
+            break
+    if tpt is None:
+        return path
+    beta, tx, ty = tpt
+    a0 = math.atan2(py - cy, px - cx)
+    sweep = (beta - a0) * sgn % (2.0 * math.pi)     # travelled turning way
+    n = max(4, int(math.ceil(sweep * radius / step)))
+    arc = [(cx + radius * math.cos(a0 + sgn * sweep * i / n),
+            cy + radius * math.sin(a0 + sgn * sweep * i / n))
+           for i in range(n)]
+    seg = math.hypot(q[0] - tx, q[1] - ty)
+    m = max(1, int(math.ceil(seg / step)))
+    line = [(tx + (q[0] - tx) * i / m, ty + (q[1] - ty) * i / m)
+            for i in range(m)]
+    tail = list(path[j:]) if not ext else ext
+    return arc + line + tail
+
+
 def blend_weight(near, radius, r_min):
     """Reactive weight in [0, 1], linear in nearest-boid distance:
     0 at/after `radius` (pure Nav2) up to 1 at/inside `r_min` (pure reactive).
@@ -381,8 +451,8 @@ class Nav2Evader:
                 'cmd_timeout': 0.3, 'fallback_hold': 1.0,
                 'plan_timeout': 2.0, 'blacklist_ttl': 6.0,
                 'blacklist_radius': 1.0, 'map_resolution': 0.1, 'seed': 7,
-                'selector': 'dominance', 'dom_margin': 0.6,
-                'goal_clearance': 0.9}
+                'selector': 'dominance', 'dom_margin': 0.6, 'smooth_start': 1,
+                'goal_clearance': 0.9, 'planner_radius': 0.3}
 
     def _param(self, name, default=None):
         # tuning / A-B hook (tools/evader_compare.py): a JSON object of
@@ -494,7 +564,7 @@ class Nav2Evader:
             self.emap = EscapeMap(
                 self.bmin, self.bmax, self.obstacles,
                 resolution=self._param('map_resolution'),
-                robot_radius=self.body_radius)
+                robot_radius=float(self._param('planner_radius')))
             self._emap_key = key
         return self.emap
 
@@ -622,6 +692,22 @@ class Nav2Evader:
         self.stats['plan_ok'] += 1
         from nav2_msgs.action import FollowPath
         f = FollowPath.Goal()
+        if self._param('smooth_start') and self._self is not None:
+            xy = smooth_start([(q.pose.position.x, q.pose.position.y)
+                               for q in path.poses],
+                              self._self, self._theta)
+            if len(xy) != len(path.poses):
+                from geometry_msgs.msg import PoseStamped
+                np_ = type(path)()
+                np_.header = path.header
+                for (x, y) in xy:
+                    q = PoseStamped()
+                    q.header = path.header
+                    q.pose.position.x, q.pose.position.y = x, y
+                    q.pose.orientation.w = 1.0
+                    np_.poses.append(q)
+                path = np_
+                self.stats['smoothed'] = self.stats.get('smoothed', 0) + 1
         f.path = path
         f.controller_id = 'FollowPath'
         f.goal_checker_id = 'general_goal_checker'
