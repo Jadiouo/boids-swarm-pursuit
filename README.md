@@ -22,7 +22,7 @@ A ROS 2 Jazzy + pygame sandbox where 12 boid drones try to catch a target that m
 - **Null result on capture.** Capture rate could not be distinguished between sharing modes at n=20 per cell (5/20 to 9/20, overlapping Wilson intervals); detecting 0.25 vs 0.45 would need about 89 runs per cell. So the experiment does **not** show that fixing the loss helps capture ([E1](artifacts/relay-e1-2026-10-08/README.md)).
 - **Nav2 evader (M7).** This is the SDD v3 M7 integration work (TF, costmap, planner, controller on a non-Gazebo simulator); it does not claim a better evader. `evader:=nav2` uses a self-written `nav2_bridge` (TF, odom, occupancy map, boids as PointCloud2), Nav2 planner and RegulatedPurePursuit controller servers, no BT navigator. Planning failures went from 44% to 5% / 20% (two repeats of the same code) after a red-team fix round ([sanity](artifacts/nav2-m7-sanity/README.md), [tuning](docs/testing/nav2-mppi-tuning.md)). A later dominance-region goal selector plus path hand-off smoothing raised the speed inside pure-Nav2 mode from 0.31 to 2.53 m/s and cut plan failures from 24/49 to 3/43 requests (n=5 seeds, non-registered; [comparison](artifacts/evader-dominance-2026-10-08/README.md)).
 - **Interactive control panel.** Mode buttons, five tabbed parameter pages (live vs. "restart" fields, Apply & restart), `ui_scale`, resizable window. The swarm stack runs in the background, so switching modes never closes the window ([details](ros2_ws/src/boids_swarm/README.md#control-panel)). The panel's default evader is `smart` (geodesic escape planner; [comparison](artifacts/evader-compare-2026-10-08/README.md)).
-- **Engineering practice.** Red-team review rounds ([review log](docs/planning/review-log.md)), pre-registration, a source fingerprint stored with every run, and an [artifacts index](artifacts/README.md) marking each folder as conclusion, diagnostic, exploration or voided. 454 collected unit tests and 23 collected real-process ROS integration tests (see Quickstart for how to run them).
+- **Engineering practice.** Red-team review rounds ([review log](docs/planning/review-log.md)), pre-registration, a source fingerprint stored with every run, and an [artifacts index](artifacts/README.md) marking each folder as conclusion, diagnostic, exploration or voided. 457 collected unit tests and 23 collected real-process ROS integration tests (see Quickstart for how to run them).
 
 ## Architecture
 
@@ -77,7 +77,7 @@ ros2 launch boids_swarm pursuit.launch.py num_agents:=12 env:=obstacle_field    
 ros2 launch boids_swarm pursuit.launch.py env:=obstacle_field ui_scale:=2.0     # bigger panel and fonts (1.0-2.5, default 1.5)
 ros2 launch boids_swarm pursuit.launch.py headless:=true evader:=reactive       # no window; headless default is reactive
 ros2 launch boids_swarm pursuit.launch.py perception:=sensor sharing_mode:=ros evader:=nav2 env:=obstacle_field   # ROS relay + Nav2 target (needs ros-jazzy-navigation2)
-cd ros2_ws && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q             # 454 collected unit tests (ROS sourced and pygame importable)
+cd ros2_ws && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q             # 457 collected unit tests (ROS sourced and pygame importable)
 # ROS integration tests (23 collected, real processes, minutes): source BOTH /opt/ros/jazzy/setup.bash and ros2_ws/install/setup.bash
 # (workspace already colcon-built), otherwise the boids_swarm_msgs import fails
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q src/boids_swarm/ros_test

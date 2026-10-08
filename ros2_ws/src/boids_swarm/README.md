@@ -504,7 +504,7 @@ costmap."*
 
 ## Tests
 
-454 unit tests are collected (`pytest -q --co`, with a sourced ROS install and pygame importable; the launch-equivalence and ParamBridge tests need ROS, some UI tests need pygame) in `boids_swarm/test` + `boids_turtlesim`; 23 more real-process integration tests are collected in `ros_test/`. Runnable straight from a fresh
+457 unit tests are collected (`pytest -q --co`, with a sourced ROS install and pygame importable; the launch-equivalence and ParamBridge tests need ROS, some UI tests need pygame) in `boids_swarm/test` + `boids_turtlesim`; 23 more real-process integration tests are collected in `ros_test/`. Runnable straight from a fresh
 clone (`ros2_ws/pytest.ini` puts both packages on the path):
 
 ```bash
