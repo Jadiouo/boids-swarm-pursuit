@@ -264,3 +264,45 @@ sim 建 comm graph(距離 < `comm_range` 連邊),用 union-find 把「看到目�
 14. **「文件寫的指令」和「你平常打的指令」會分岔** —— 你的 shell 早就 source 過 install/setup.bash,所以文件裡少一步安裝、少一個 PYTHONPATH 你永遠不會發現。收尾時一定要用**乾淨環境**照著自己的 README 走一遍。
 15. **調參讓遊戲好玩,會讓文件變成謊話** —— 1.8× / body_radius 0.15 都是為了可玩性調的,但招牌還掛著 2× 和「大目標繞路」。調參當下就該回頭改文件,不然半年後沒人知道哪個才算數。
 16. **靜默 fallback 是基準測試的毒藥** —— `dict.get(name, default)` 在設定檔驅動的實驗裡等於偽造數據。不合法的值要嘛吵、要嘛炸,不能安靜。
+
+
+---
+
+## Phase 6 — 一跳 ROS 觀測共享與驗證（2026-10-07）
+
+**停點：**Phase 1 一跳 ROS relay、文件及小型實驗已驗收；捕獲效能改善未開始。無本專案程序執行。工作樹有未提交檔案；本次只寫日誌，無新實驗。
+
+**方向與交付：**選 B「真 ROS 一跳量測共享」為核心、A「固定條件小實驗」作證據；C「延遲／丟包、事件回放、大 sweep」延後。紅方指出舊 relay 使用 simulator 真值，DDS 全域可達不等於無線網路；白方建議先守 freshness、reset、direct priority、失聯搜尋。range gate 仍依 simulator pose，在應用層限制一跳。完成訊息、權威 epoch/seq、驗證仲裁、原始 TTL、獨立 tracker、四模式相容、telemetry/runner；ROS mode 排除舊 array target，不轉送 relay track。方向與設計見[方向](docs/planning/portfolio-direction.md)、[SDD](SDD/Sdd_distributed_sighting_relay_v1.md)、[TDD](docs/testing/distributed-sighting-relay-tdd.md)。
+
+**修正與驗收：**修正測試歷史 `any` 假陽性（改按 agent/phase/stamp 篩選、drain fixture）、neighbor callback 重融 target／續 TTL、手動 reset epoch generation、QoS、launch mode 宣告及 msg package build type。上一輪驗收：純測試 **156 passed**、真 ROS 雙節點 **2 passed**、pyflakes/diff-check 通過；Jazzy build、perfect 和 sensor/legacy launch 均輸出 SUMMARY。本次沒有重跑。
+
+**實驗與限制：**9 base runs（3 modes × seeds 11/23/37）加 3 個 seed 11 repeats，共 12 次；全數在模擬 30.02 秒 timeout，無捕獲，不能聲稱效能改善或策略勝出。4 個 ROS runs 的 collector 共同 local/shared key 全欄位一致為 1015/1015、1139/1139、1102/1102、955/955；BEST_EFFORT KEEP_LAST(1) 漏收部分 controller 已接受 key，不能稱全網 delivery 100%。coverage 是 receiver 機會覆蓋，非 packet ratio；age 是 simulation time，非 DDS wall latency；range gate 依 simulator pose。詳見[實驗證據](artifacts/sighting-relay-final-2026-10-07/README.md)。
+
+Source hash `b7f28c058e87b00ce14d0c6b192832c458e02c5536598a5abc517f6c26204acc`；[41 檔 snapshot](artifacts/sighting-relay-final-2026-10-07/source_snapshot.tar.gz) 84 KB，evidence 約 40.7 MB；本日誌不在 fingerprint 範圍。
+
+**建議，尚未執行：**以固定少量 seed/場景查 sighting 失聯、重獲及攔截失敗，分辨控制、感知、通訊因素後再定改善與指標；之後才評估回放或延遲／丟包。目前無實驗執行，不預先承諾新功能。
+
+
+---
+
+## Phase 7 — M7 Nav2 evader（2026-10-08）
+
+**交付：**`evader:=nav2` 可用：逃跑目標取樣評分 → ComputePathToPose/FollowPath → 與 ReactiveEvader 依最近 boid 距離線性混合，`/target/evader_status` 可觀察 mode（nav2/blend/reactive）與失敗計數；障礙由 launch 單一來源同步給 sim／controller／bridge；控制器限速由 params.yaml 推導（3.6 m/s、1.2 rad/s）。細節見 `ros2_ws/src/boids_swarm/README.md`「Nav2 evader (M7)」。
+
+**調參結論（原版，已被下方〈紅方修正〉更正）：**MPPI 嘗試 7 組，但 v3 harness 下有效的只有 4 組（m00/m04/m05/m07）皆未達標，另 3 組只在不可比的 v1/v2 harness 跑過；RPP 勝出的 planner 半徑修正當時沒有套給 MPPI；RPP（曲率調節半徑 = v_max/ω_max）在開闊與中等障礙場 cruise 2.5–3.2、無碰撞無停住，密集迷宮 2.2、貼牆起步 1.9 未達 2.5。全部嘗試含失敗組合在 `docs/testing/nav2-mppi-tuning.md`。
+
+**實跑才發現的坑：**貼牆起步 navfn 拒絕規劃（規劃半徑 > 身體半徑）、RPP collision check 在牆邊永遠 abort、nav2 target 進程比 boid 啟動慢造成追捕者起跑領先（用 `warmup`／`pursuer_delay` 處理）、牆與大障礙之間 0.6 m 的口袋會讓目標卡住（降低、未根除）。
+
+**限制：**sanity 基準（`artifacts/nav2-m7-sanity/`）每組 5 runs、同 seed 重跑結果會翻轉，**不能**據此說 nav2 比 reactive 強或弱；正式比較須另行預先登記。
+
+### 紅方修正（2026-10-08，同日）
+
+**核實的問題：**口袋自困是參數不一致，不是運氣：planner footprint（0.22）> 身體（0.15）、牆畫在競技場內側、plan_start 內縮（0.3）< 牆+半徑。另有失敗後同一不可達 goal 反覆重送、逾時不 cancel 造成晚到結果重複處理、逃跑點只看歐氏距離、`use_collision_detection: false` 使 local costmap 對行為無影響、`(v, w)` 線性混合讓反向轉向相消、非 panic 時速度被夾在 2.0（stamina 設計，非 bug）。
+
+**修了什麼：**牆改畫在競技場外側（貼牆格 cost≈203，高但可通行）、global/local `robot_radius` 由 `target_body_radius` 在 launch 推導；失敗 goal 進黑名單（時間到期、重複加倍）、fallback_hold 期間不重送、逾時 cancel 並以 seq 擋晚到結果；`EscapeMap` 做 grid 測地距離（不可達淘汰、目標先到的 lead、死巷懲罰，每次決策約 13 ms）；blend 改在航向空間。整合測試補了 boid 於 local+global costmap（即時取樣、清空後負對照）、口袋起點、回退與 preempt。
+
+**重新量測（非預先登記）：**plan 失敗率 45/103 → 3/61 與 20/100（同程式兩次重跑差很多）；時間加權 mode：純 nav2 只占 9–22 %；目標在遊戲內平均速度 nav2 1.9–2.3 vs reactive 2.7–2.8 m/s。RPP collision detection 重開後迷宮與貼牆起步都 abort，維持關閉。迷宮 cruise 2.20→2.46、鑽石 2.52→2.35（迷宮有一條 chain 貼到障礙 0.01 m）。**沒有**宣稱 nav2 優於或劣於 reactive。
+
+**仍未達成：**Nav2 控制器本身不躲 boids；sanity seed 6 仍有 15 次 plan 失敗（目標被卡在牆邊口袋約 23 s，推論與 boid 堵住出口有關）；「開闊」與「避免自困」只有單元測試層級的證據，沒有隔離的實驗；MPPI 只在兩個場景重測。
+
+**教訓：**(1) 整合測試要驗「資料來源」——先前 cost>0 測試在 boid 還沒更新時取位置、也沒有負對照；加上負對照才發現 obstacle layer 在 `observation_keep_time 0` 時會一直重標最後一包 cloud（所以負對照要送空 cloud 而不是停止發送）。(2) 跑兩個 ROS 整合檔在同一個 pytest 行程會 `rclpy.init` 兩次而失敗，並漏出 `boid_controller` 到同一個 ROS domain，污染之後的 sanity（boid 提前移動、capture 在 target 發佈前）；清理程序要用 PID／含 worktree 路徑的精確 pattern，跑 benchmark 前先確認 domain 乾淨。

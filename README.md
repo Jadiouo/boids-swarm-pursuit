@@ -1,202 +1,92 @@
-# ROS 2 Boids 群體協同追捕 — 專案介紹
+# Boids Swarm Pursuit: 12 ROS 2 nodes chasing a 1.8x-speed target
 
 [![tests](https://github.com/Jadiouo/boids-swarm-pursuit/actions/workflows/tests.yml/badge.svg)](https://github.com/Jadiouo/boids-swarm-pursuit/actions/workflows/tests.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-一個用 **ROS 2 (Jazzy)** 打造的多機器人群體智慧沙盒:一群 boids(鳥群/群體 agent)透過**分散式、局部感知**的協同,合作圍捕一個速度是自己 **2 倍**的目標。單一 agent 永遠追不上,唯有靠**預測、包抄、包圍、驅趕**等群體戰術才可能得手 —— 這正是專案的核心趣味與研究價值。
+[中文舊版 README (legacy, English is authoritative)](docs/README.zh-TW.md) | [Version history and legacy details](docs/project-history.md)
 
-最終目標是把這套群體控制邏輯遷移到真實無人機(Crazyflie / Crazyswarm2),所以整個設計刻意保持「分散式 + 局部感知」的骨架。
+A ROS 2 Jazzy + pygame sandbox where 12 boid drones try to catch a target that moves 1.8x faster than they do. Each boid is an independent ROS node. By default (the v3 baseline) it reads perfect poses; with `perception:=sensor sharing_mode:=ros` each agent has a simulated sensor (FOV, occlusion, noise) and shares sightings with the others over a ROS topic. The project's focus is not the chase itself but how that sharing works and how honestly it was measured.
 
-> **關於「2×」**:2× 是設計上限,也是 `pygame_sim_node` 的預設值。實際出貨的
-> `config/params.yaml` 用 **1.8×**(`target_speed_multiplier`),因為實測 2× 搭配
-> stamina 之後遊戲偏向「不可能」而非「難」。同理 `target_body_radius` 出貨值是
-> 0.15(與 boid 同大小),SDD C.1「大目標擠不過通道」那條的 sim 預設 0.7 沒有啟用。
-> 兩個值都可以直接在 params.yaml 或 `ros2 param set` 改回去。
+![demo](docs/media/demo_capture.gif)
 
----
+*Single hand-picked recording, not a statistic: 12 agents, `encircle`, `env:=obstacle_field`, seed 11, target 1.8x (shipped `params.yaml`), perception=perfect; captured after about 9.7 s. Blue = pursuers, red = target. Reproduction: [docs/media/README.md](docs/media/README.md). Do not extrapolate a capture rate from it. The demo uses the default perfect-perception baseline, not the sensor+relay mode measured below.*
 
-## 三個演進階段
+## Highlights
 
-專案依三份 SDD 逐步演進,每一版都建立在前一版之上:
+- **Sighting relay over ROS 2.** In `perception:=sensor` mode, one-hop `TargetSighting` topics built from each sender's simulated local sensor replace the simulator-side oracle, with range gate, freshness check, de-duplication and direct-over-relay arbitration. Developed in red→green slices with ROS integration tests ([SDD](SDD/Sdd_distributed_sighting_relay_v1.md), [TDD notes](docs/testing/distributed-sighting-relay-tdd.md)).
+- **Pre-registered experiment** ([plan](SDD/Sdd_relay_phase2_prereg.md), unmodified; committed in the private development history about 7 min before the first run by local file timestamps; the author date is preserved on the first commit here; history was squashed before publication, so this is self-reported, not externally registered; per-run start/finish times are not part of the tracked artifacts). QoS `BEST_EFFORT depth=1` dropped 48.8% of in-range sightings per receiver (bootstrap 95% CI 48.0-49.7%); `depth=10` only 1.8% (1.3-2.4%), 12 agents ([E1](artifacts/relay-e1-2026-10-08/README.md)). Post-hoc [E1b](artifacts/relay-e1b-followup-2026-10-08/README.md): depth 1 still dropped about 52% in real time. Shipped default is now `shared_sighting_qos_depth: 10`.
+- **Null result on capture.** Capture rate could not be distinguished between sharing modes at n=20 per cell (5/20 to 9/20, overlapping Wilson intervals); detecting 0.25 vs 0.45 would need about 89 runs per cell. So the experiment does **not** show that fixing the loss helps capture ([E1](artifacts/relay-e1-2026-10-08/README.md)).
+- **Nav2 evader (M7).** This is the SDD v3 M7 integration work (TF, costmap, planner, controller on a non-Gazebo simulator); it does not claim a better evader. `evader:=nav2` uses a self-written `nav2_bridge` (TF, odom, occupancy map, boids as PointCloud2), Nav2 planner and RegulatedPurePursuit controller servers, no BT navigator. Planning failures went from 44% to 5% / 20% (two repeats of the same code) after a red-team fix round ([sanity](artifacts/nav2-m7-sanity/README.md), [tuning](docs/testing/nav2-mppi-tuning.md)).
+- **Engineering practice.** Red-team review rounds ([review log](docs/planning/review-log.md)), pre-registration, a source fingerprint stored with every run, and an [artifacts index](artifacts/README.md) marking each folder as conclusion, diagnostic, exploration or voided. 261 collected pure tests and 15 real-process ROS integration tests.
 
-| 版本 | 主題 | 顯示層 | 產出 |
-|---|---|---|---|
-| **v2** | Boids 群聚核心 | ROS 2 `turtlesim` | 分離/對齊/凝聚/邊界/漫遊 + 非完整約束運動學轉換 |
-| **v3** | 協同追捕遊戲 | 自製 **pygame** 世界 | 追捕遊戲迴圈、T0–T4 策略階梯、捕獲/計分、可玩 human 模式 |
-| **v4** | 感知模型、進階控制、程序化環境 | 同上 | 真實感測器模型、航跡追蹤、資訊分享、反周界戰術、程序化地圖、自適應目標 |
-| **v5** | 視窗內控制面板(M15) | 同上 | 滑鼠即時改策略/大腦/模式/權重,參數扇出到 N 個 controller |
+## Architecture
 
-- **`boids_turtlesim/`** — v2 套件(turtlesim 群聚)
-- **`boids_swarm/`** — v3–v5 主套件(pygame 世界 + 追捕遊戲 + 控制面板)
-
----
-
-## 系統架構(分散式 + 唯一世界擁有者)
-
-```
-        ┌─────────────────────────────┐
-        │  pygame_sim_node（唯一世界）  │  物理 · 碰撞 · 捕獲 · 渲染 · 計分
-        │  合成每-agent 感測 · 發 /clock │
-        └──────┬───────────────┬──────┘
-     pose/detections     cmd_vel │  ▲ cmd_vel
-               ▼               │  │
-   ┌───────────────────┐      │  │   ┌────────────────────────┐
-   │ boid_controller ×N │──────┘  └───│ target_controller（逃者）│
-   │ 群聚+追擊+追蹤+搜尋 │             │ reactive / adaptive 大腦 │
-   └───────────────────┘             └────────────────────────┘
+```mermaid
+flowchart LR
+  sim["pygame_sim_node<br/>world, physics, capture, sensor synthesis"]
+  subgraph agents["boid_controller x12 (/agent0../agent11)"]
+    ctl["flocking + pursuit + track filter"]
+  end
+  tgt["target_controller<br/>reactive / adaptive / Nav2Evader"]
+  br["nav2_bridge<br/>TF, /target/odom, /map, /boids_cloud"]
+  nav["Nav2 planner_server + controller_server"]
+  sim -- "/agentI/pose, /agentI/detections, /agentI/local_target_sighting, /clock, /simulation/episode_state" --> ctl
+  ctl -- "/agentI/cmd_vel" --> sim
+  ctl -- "/swarm/target_sightings (shared pub/sub topic; receiver-side range gate, app-level one hop)" --> ctl
+  ctl -- "/swarm/relay_events" --> log[(experiment collector)]
+  sim -- "/swarm/poses, /target/pose" --> tgt
+  tgt -- "/target/cmd_vel" --> sim
+  sim -- "/target/pose, /swarm/poses" --> br
+  br --> nav
+  nav -- "/target/nav2_cmd_vel" --> tgt
 ```
 
-- **每個 agent 跑自己的 controller 節點**(獨立 process、獨立 namespace `/agent0..N`),沒有中央大腦 —— 這是「分散式」的本質。
-- **sim 是唯一的世界狀態擁有者**;controllers 只透過 ROS 主題溝通(pose/detections 進、cmd_vel 出)。
-- sim 發布 `/clock`,controllers 用 `use_sim_time`,所以 headless 快轉基準測試仍公平可重現。
+Details and parameters: [package README](ros2_ws/src/boids_swarm/README.md).
 
----
+## Results
 
-## 主要功能(v5 現況)
+![capture rate](docs/media/relay_e1_capture_rate.png)
 
-### 感知(可切 `perception:=perfect|sensor`)
-- **perfect**:v3 基準,廣播全域真值(回歸用)。
-- **sensor**:sim 為每個 agent 合成「牠實際看得到的」—— **視野錐 FOV**、**遮蔽 ray-cast**、**隨距離增長的雜訊**、**偵測丟失**,只發相對 range/bearing。每個 agent 各只訂閱自己的 `/agent{i}/detections`。
+Capture rate per mode (S12, 20 runs each, Wilson intervals): all five modes overlap, so no ordering is claimed. [Numbers and caveats](artifacts/relay-e1-2026-10-08/README.md).
 
-### 追蹤 · 搜尋 · 資訊分享
-- **航跡濾波**(alpha-beta + 資料關聯):平滑雜訊、橋接丟失、從速度**導出**航向/速度。
-- **搜尋**:全員看不到目標時,依 index 扇形散開掃描,直到重新捕獲。
-- **資訊分享**(`comms.py`):看到目標的 agent 沿**距離限制的網狀鏈**廣播,群體因此能追蹤大多數個體看不到的目標 —— **「群體握有單一個體沒有的知識」**,個體 vs 群體的分界。
+![drop rate](docs/media/relay_e1_drop_rate.png)
 
-### 追捕戰術(`strategy:=`)
-- 基礎階梯:`naive` / `intercept` / `pincer` / `encircle`(先包圍再收攏)/ `herd`
-- 反周界(對付貼牆跑者):`counter_rotate` / `blockade`(提前堵路,最強)/ `corner_trap` / `herd_inward`
-- 新隊形:`sweep`(貼牆線 cordon)/ `role_encircle`(非對稱收網)/ `bait`(誘餌開口)
-- **`auto`(預設)**:每個 boid 依情境自動選策略 —— 目標繞周界→blockade、貼角落→corner_trap、開闊→encircle。
-- **終端撲擊**:靠近目標時直接撲上(而非繞圈),果斷收網。
+Per-receiver in-range drop, the one clear pre-registered result: 48.8% at depth 1 vs 1.8% at depth 10 (fast-forward, time_scale 4). Likely mechanism (not tested): 12 publishers share one topic and the simulator publishes all of them in the same tick, so bursts overwrite the reader's KEEP_LAST(1) history before the executor takes them. In the post-hoc [E1b](artifacts/relay-e1b-followup-2026-10-08/README.md), depth 10 lost 7.7% under fast-forward (confounded by machine load) but 0.3% in real time, while depth 1 still lost about 52% in real time (4 runs per cell). Because of E1 the shipped default is now `shared_sighting_qos_depth: 10`; E1 and E1b set the depth explicitly and are unaffected. See also the exploratory [cumulative capture curve](docs/media/relay_e1_cumulative_capture.png) and the [artifacts index](artifacts/README.md).
 
-### 程序化環境(`env:=`,種子決定式)
-- `obstacle_field`(**固定手工地圖** —— 12 顆大小不一的圓鋪滿整張、彼此留通道,每次都一模一樣;避障另加**切向滑過**分量讓 agent 弧線繞過障礙)、`pillar`(中央柱)、`zones`(綠=捕獲區直接贏、琥珀=焦油坑抵消速度優勢)、`shrink`(競技場邊界內縮,讓周界迴圈物理上不可能)。
+## Quickstart
 
-### 自適應目標(`evader:=reactive|adaptive`)
-- **adaptive**:效用選擇器在行為 repertoire(逃離 / 沿牆跑 / 急閃 / 穿隙 / 障礙掩護)上依威脅幾何評分,含遲滯避免抖動。與自適應追捕者形成軍備競賽。
-
-### 視窗內控制面板(M15)
-視窗右側 280px 是控制區,**跑的時候直接用滑鼠改策略與參數**,不用重開:
-
-| 區塊 | 控制項 |
-|---|---|
-| PURSUIT | strategy(13 種循環)、`w_pursuit`、`commit_distance`、`ring_radius_start` |
-| TARGET | evader(reactive↔adaptive)、速度倍率、轉向率、stamina |
-| GAME | capture_mode(hull/escape_blocked/tag)、`d_capture`、ai↔human |
-| WORLD / VIEW | 軌跡、comms mesh |
-| | RESET EPISODE(重開本回合,**不會灌水回合數**)、PAUSE |
-| 唯讀 | perception、env、agent 數 —— 這三個在 launch 時決定 |
-
-兩個設計重點:
-
-- **面板不持有任何數值**(immediate mode):每幀去問 ROS 參數現值再畫。所以你用滑鼠改、跟在另一個終端下 `ros2 param set`,兩邊永遠一致。
-- `pursuit_strategy` 其實住在 **N 個獨立的 controller 行程**上,面板改一次 = N 個 `SetParameters` service call。這些呼叫**排進佇列、由 executor 執行緒統一發送**(pygame 在主執行緒),同一個參數只留最新值 —— 否則拖一次滑桿會塞爆數百輪扇出。
-
-面板需要視窗和滑鼠,所以 `headless:=true` 時自動關閉;也可以用 `ui:=false` 手動關掉。
-
----
-
-## 怎麼跑
-
-需求:**ROS 2 Jazzy** + Python 3.12 + **pygame**(顯示層,不隨 ROS 安裝)。
+Needs ROS 2 Jazzy, Ubuntu 24.04, and pygame importable by `/usr/bin/python3`.
 
 ```bash
-cd ~/boids-swarm-pursuit/ros2_ws
-source /opt/ros/jazzy/setup.bash
-
-# 依賴(pygame 一定要裝,否則 pygame_sim 一啟動就 ModuleNotFoundError)
 sudo apt install python3-pygame
-#   或讓 rosdep 依 package.xml 補齊:
-#   rosdep install --from-paths src --ignore-src -y
-#   沒有 sudo 的話(Ubuntu 24.04 的 PEP 668 會擋掉單純的 pip install):
-#   python3 -m pip install --user --break-system-packages pygame
-
-colcon build --symlink-install --packages-select boids_swarm
-source install/setup.bash            # 每個新終端都要
-
-# 追捕遊戲 + 控制面板(預設就有;滑鼠即時改策略/參數)
-ros2 launch boids_swarm pursuit.launch.py num_agents:=12 env:=obstacle_field
-
-# 純群聚(無目標)
-ros2 launch boids_swarm flocking.launch.py num_agents:=12
-
-# 追捕遊戲(自動選策略 + 障礙場)
-ros2 launch boids_swarm pursuit.launch.py strategy:=auto env:=obstacle_field trails:=true stamina:=true
-
-# 明顯的線形隊形
-ros2 launch boids_swarm pursuit.launch.py strategy:=sweep env:=pillar trails:=true
-
-# 感測模型 + 資訊分享(窄 FOV 最能看出群體共知)
-ros2 launch boids_swarm pursuit.launch.py perception:=sensor strategy:=auto
-
-# 你親自當高速目標(方向鍵,↑ 衝刺)
-ros2 launch boids_swarm pursuit.launch.py game_mode:=human strategy:=blockade
-
-# 存 PNG 逐格檢查(視窗看不清時)
-ros2 launch boids_swarm pursuit.launch.py strategy:=auto env:=pillar \
-    screenshot_dir:=/tmp/frames screenshot_period:=5.0
-
-# 無畫面基準測試(同種子、有界快轉;跑完自動退出並印 SUMMARY)
-ros2 launch boids_swarm pursuit.launch.py headless:=true episodes_max:=6 \
-    seed:=11 strategy:=blockade time_limit:=90.0
+scripts/quickstart.sh                  # build, pure tests, one headless 20 s episode (SKIP_ROS_TESTS=0 adds ROS tests)
+source /opt/ros/jazzy/setup.bash && source ros2_ws/install/setup.bash
+ros2 launch boids_swarm pursuit.launch.py num_agents:=12 env:=obstacle_field    # windowed demo with control panel
+ros2 launch boids_swarm pursuit.launch.py perception:=sensor sharing_mode:=ros evader:=nav2 env:=obstacle_field   # ROS relay + Nav2 target (needs ros-jazzy-navigation2)
+cd ros2_ws && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q             # 261 collected; without ROS sourced: 260 passed + 1 skipped
+# ROS integration tests (15, real processes, minutes): source BOTH /opt/ros/jazzy/setup.bash and ros2_ws/install/setup.bash
+# (workspace already colcon-built), otherwise the boids_swarm_msgs import fails
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q src/boids_swarm/ros_test
 ```
 
-測試(純數學,**不需要 ROS 也不需要 pygame**,乾淨 clone 即可跑):
+## Limitations
 
-```bash
-cd ros2_ws && python3 -m pytest -q      # 135 passed
-```
+- World truth is still owned by a single simulator. The relay's range gate uses simulator poses; DDS itself delivers to every node. This is an application-level simulated range, not a radio model, and not a fully distributed system. There is no latency or loss model beyond QoS effects.
+- The pre-registered n=20 per cell was fixed before any power calculation; a post-hoc calculation shows about 89 runs per cell are needed. 149 of the 150 E1 runs carry `working_tree_dirty`: a runner output-path bug created untracked directories, the source code did not change (see the [E1 README](artifacts/relay-e1-2026-10-08/README.md)).
+- Runs are not bitwise reproducible with the same seed (the seed fixes layout only), so each run is one sample.
+- All experiments ran on one shared machine under background load (load average 14-24 in E1, 13-68 in E1b). E1b's fast-forward vs real-time contrast is confounded with that load.
+- E1 ran at `time_scale` 4; depth-1 loss was confirmed in real time only with 4 runs per cell (E1b, post-hoc).
+- Capture-rate effects are undetermined (n=20); oracle and ros relays carry different information, so oracle is not an upper bound for ros.
+- Nav2 target: pure Nav2 mode is only 9-22% of the time (the rest is blended or reactive near boids), in-game speed is lower than the reactive evader (1.9-2.4 vs 2.7-2.9 m/s), Nav2 does not react to boids itself, and self-trapping in a wall pocket is reduced but not solved (seed 6, 15 plan failures in one repeat). The sanity run is not an experiment: two repeats of identical code disagreed more than the evaders differed.
+- The shipped target speed is 1.8x, not 2x (2x plus stamina was measured as impossible rather than hard).
 
----
+## Repo map
 
-## 值得一提的工程教訓(踩過的坑)
-
-多機器人 ROS 2 控制迴圈有幾個「靜默殺手」—— 節點在跑、主題有流量,但控制品質被毀:
-
-1. **`rclpy.spin_once` 一次只處理一個 callback**,對 N 條 cmd_vel 會積壓成 ~330ms 致動延遲 → 每個轉向迴圈震盪。改用背景執行緒 executor + QoS depth 1。
-2. **N×N pose 訂閱在 Python 到 N≈12 就把 CPU 打爆** → 改用聚合主題(v3);v4 感測模式每 agent 只訂自己那條。
-3. **P 轉向控制在 ±π 邊界抖動**(延遲下永遠選不定轉向)→ 加轉向遲滯 + 期望向量 EMA。
-4. **感測雜訊/丟失會再度衝擊轉向迴圈** → 靠航跡濾波吸收,raw blip 別直接進行為。
-5. **共享信念是雙面刃**:全員收斂同一信念會擠成一團(對周界跑者反而更難圍)—— 正是反周界戰術要解的。
-
-完整開發過程與 13 條坑清單見 [log.md](log.md)。
-
----
-
-## 檔案地圖
-
-```
-boids-swarm-pursuit/
-├── README.md                     # 本檔(專案總覽);PROJECT.md 是它的 symlink
-├── log.md                        # 三階段完整開發日誌 + 坑清單
-├── presentation_script.md        # 簡報逐字稿
-├── LICENSE                       # MIT
-├── SDD/                          # 三份設計文件 v2/v3/v4
-└── ros2_ws/
-    ├── pytest.ini                # 讓單元測試在乾淨 clone 直接可跑
-    └── src/
-        ├── boids_turtlesim/      # v2 turtlesim 群聚
-        └── boids_swarm/          # v3–v5 主套件
-            ├── boids_swarm/
-            │   ├── pygame_sim_node.py       # 世界:物理/渲染/感測合成/區域/收縮
-            │   ├── boid_controller_node.py  # 群聚+追擊+追蹤+搜尋(每 agent)
-            │   ├── target_controller_node.py# 逃者(reactive/adaptive)
-            │   ├── perception.py            # 感測器模型(FOV/遮蔽/雜訊/丟失)
-            │   ├── tracking.py              # 航跡濾波+關聯+繞圈偵測
-            │   ├── comms.py                 # 距離限制網狀信念傳播
-            │   ├── ui.py                    # 控制面板 widget(純數學,無 pygame import)
-            │   ├── param_bridge.py          # 面板→N 個 controller 的參數扇出
-            │   ├── world_gen.py             # 種子決定式程序化地圖
-            │   ├── game.py                  # 捕獲條件+計分
-            │   ├── geometry.py              # 向量/角度/運動學轉換
-            │   └── behaviors/
-            │       ├── flocking.py          # 分離/對齊/凝聚/邊界/漫遊/搜尋
-            │       ├── pursuit.py           # 全部追捕策略 + auto + 終端撲擊
-            │       └── evasion.py           # Reactive / Adaptive / Nav2(stub)
-            ├── launch/                      # flocking / pursuit launch
-            ├── config/params.yaml           # 所有可調參數(runtime 可改)
-            └── test/                        # 135 個單元測試
-```
-
-詳細指令與參數見套件的 [README](ros2_ws/src/boids_swarm/README.md)。
+| Path | Contents |
+|---|---|
+| [SDD/](SDD/) | Design documents (v2/v3/v4), relay SDD, pre-registration |
+| [docs/](docs/) | [testing notes](docs/testing/), [media](docs/media/), [planning](docs/planning/), [project history](docs/project-history.md) |
+| [artifacts/README.md](artifacts/README.md) | Index of every experiment folder and its status |
+| [ros2_ws/src/boids_swarm/](ros2_ws/src/boids_swarm/) | Main package: nodes, `behaviors/`, launch, `tools/` experiment runners, tests |
+| [scripts/quickstart.sh](scripts/quickstart.sh) | One-shot build and verification |
+| [log.md](log.md) | Chronological development log and pitfall list |
