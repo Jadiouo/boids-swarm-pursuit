@@ -65,3 +65,17 @@ Checked against nav2_target.yaml (`robot_radius` 0.22), occupancy.py (`border_ce
 - **Cancel the E2 capture-rate comparison** (n=40 almost certainly cannot separate the groups). Replace with mechanistic M7 acceptance metrics: self-trap count, plan-failure rate, time-weighted Nav2 share, obstacle-avoidance success.
 - **Stop-loss for Nav2:** after the fixes and re-measurement, if the Nav2 share is still low, state that Nav2 is a planning sub-module with the reactive controller taking over at close range. No further tuning; MPPI is not revisited.
 - Next steps: merge branches, repo-relative quickstart, artifacts index, README rewrite (<=120 lines, GIF first, one-line conclusion, honest limitations, old content moved to docs/), privacy audit, one more red review of the README. No red/white round after every step; keep the decision record short.
+
+## Control panel, smart evader and dominance selector (review notes)
+
+Dates are 2026-10-08. All numbers below come from non-registered sanity runs; none is a hypothesis test.
+
+| Question | Ruling | Reason / action |
+|---|---|---|
+| Is the evader degrading when it runs into walls? | Not a regression | `ReactiveEvader` steers by local repulsion and has no wall-escape logic by design; wall contact is its normal behaviour. The `smart` evader was added as a separate brain instead of changing the reactive one, so registered runs keep their behaviour. |
+| Why did the evader look "dumb" in Sensor + ROS mode? | Not the sensing mode | Baseline and Sensor + ROS drive the same evader and behave the same. The real cause was the spawn rule: `_free_pos` draws 200 random positions and falls back to the arena centre when none is far enough from the boids, which happened for about half the seeds with 12 boids, so the target started surrounded and was caught in about 1 s. Fix: `spawn.py` (`spawn_safe`, `spawn_min_clearance`) plus `capture_grace`, on by default in the window only. Headless and pre-registered runs keep the original rule. |
+| Keep the dominance-region selector for `smart`? | Keep, with the limit stated | It improves survival in `open` and, for Nav2, in-mode speed (0.31 to 2.53 m/s) and plan failures (24/49 to 3/43, n=5). In `obstacle_field` with 12 pursuers there is no visible difference (all caught in 3-7 s), so no claim of a stronger evader there. `selector: sampled` stays available for comparison. |
+| Why did the Nav2 target turn on the spot? | Controller behaviour, not preemption | The RegulatedPurePursuit controller rotates in place when the look-ahead point is more than `rotate_to_heading_min_angle` off the heading, which happens after any goal change pointing backwards. Goal preemption was ruled out. Fix: `smooth_start` replaces the head of a new path with a turning arc so the follower turns while moving; the planner footprint radius and a wall penalty on goals were also adjusted. |
+| Can the panel results be compared with the pre-registered experiment? | No | Window runs use `spawn_safe` and `capture_grace`; the registered runs use the original spawn rule. The README states this. |
+| Also fixed | | Launched in the background, `kill -INT` was ignored (inherited SIGINT disposition); `ensure_sigint_deliverable` restores it. Agents are drawn larger so they are visible at normal window sizes. |
+

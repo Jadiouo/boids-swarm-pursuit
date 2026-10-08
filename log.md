@@ -306,3 +306,16 @@ Source hash `b7f28c058e87b00ce14d0c6b192832c458e02c5536598a5abc517f6c26204acc`�
 **仍未達成：**Nav2 控制器本身不躲 boids；sanity seed 6 仍有 15 次 plan 失敗（目標被卡在牆邊口袋約 23 s，推論與 boid 堵住出口有關）；「開闊」與「避免自困」只有單元測試層級的證據，沒有隔離的實驗；MPPI 只在兩個場景重測。
 
 **教訓：**(1) 整合測試要驗「資料來源」——先前 cost>0 測試在 boid 還沒更新時取位置、也沒有負對照；加上負對照才發現 obstacle layer 在 `observation_keep_time 0` 時會一直重標最後一包 cloud（所以負對照要送空 cloud 而不是停止發送）。(2) 跑兩個 ROS 整合檔在同一個 pytest 行程會 `rclpy.init` 兩次而失敗，並漏出 `boid_controller` 到同一個 ROS domain，污染之後的 sanity（boid 提前移動、capture 在 target 發佈前）；清理程序要用 PID／含 worktree 路徑的精確 pattern，跑 benchmark 前先確認 domain 乾淨。
+
+---
+
+## Phase 8 — 控制面板、smart 逃跑者、優勢區域選擇器（2026-10-08）
+
+**交付：**視窗內控制面板改版：三個模式按鈕（Baseline / Sensor + ROS / Nav2 target）、sim 內的 `StackSupervisor` 在背景以 `swarm_stack.launch.py` 重啟 swarm stack（視窗不關）、五個分頁（欄位分「即時」與「需重啟」，Apply & restart）、`ui_scale`（預設 1.5）、可捲動與縮放；話題 `/ui/mode_request`、`/ui/stack_status`。新逃跑者 `evader:=smart`（`behaviors/smart_evader.py`）：視窗預設，headless 預設仍 reactive。優勢區域選擇器（`behaviors/dominance.py`）由 smart 與 Nav2 共用，Nav2 加路徑交接平滑化（`smooth_start`）。UI 模式安全出生（`spawn.py`：`spawn_safe`、`spawn_min_clearance`、`capture_grace`）；另修 SIGINT（`ensure_sigint_deliverable`）與 agent 繪製放大。
+
+**診斷：**(1) 撞牆不是退化，是 ReactiveEvader 的設計（無脫牆邏輯）。(2) Sensor+ROS 逃跑者「笨」不是模式問題：兩模式行為相同；真因是 `_free_pos` 抽 200 次失敗就退回地圖中心，12 隻時約一半 seed 一開局就被包圍。(3) Nav2 原地轉向的根因是 RPP 的 rotate-to-heading，不是 goal preempt。
+
+**量測（非預先登記，n 小）：**Nav2 純 nav2 mode 速度 0.31→2.53 m/s、plan 失敗 24/49→3/43（seeds 1-5）；純 nav2 時間比例仍只有約 11%。obstacle_field、12 追兵下所有逃跑者 3–7 s 內被捕，新舊選擇器無差異；open 場地 dominance 傾向存活較久。見 `artifacts/evader-compare-2026-10-08/`、`artifacts/evader-dominance-2026-10-08/`。
+
+**限制：**UI 模式與預先登記實驗的出生規則不同，結果不可互比；Nav2 貼牆情形未在 dominance 對照中重測。測試收集數：單元 454、ROS 整合 23。
+

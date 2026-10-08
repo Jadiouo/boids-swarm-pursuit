@@ -109,6 +109,21 @@ runs stay reproducible, and an explicit `evader:=...` always wins. In the
 captured faster in `obstacle_field`; see
 [artifacts/evader-compare-2026-10-08/README.md](../../../artifacts/evader-compare-2026-10-08/README.md).
 
+**Escape-goal selection (`smart` and `nav2`).** Both evaders share the
+dominance-region selector in `behaviors/dominance.py`: candidate goals are
+restricted to cells the target reaches at least `dom_margin` (0.6 s) before
+every pursuer (geodesic times on the occupancy grid); if that region is empty
+a break-out goal is chosen. Parameters: `smart_selector` / `nav2_selector`
+(`dominance` default, `sampled` = the previous random-candidate scorer),
+`smart_w_dom`, `smart_dom_margin`, `nav2_dom_margin`; for Nav2 also `nav2_smooth_start` (1 = trim the
+first path points that would make the controller rotate in place before
+following) and `nav2_planner_radius` / `nav2_goal_clearance`. Trade-off:
+in the non-registered comparisons dominance helps in `open` (longer survival)
+and Nav2 mode (speed 0.31 to 2.53 m/s, plan failures 24/49 to 3/43, n=5), but in
+`obstacle_field` with 12 pursuers there is no visible difference (all caught
+within 3-7 s); see
+[artifacts/evader-dominance-2026-10-08/README.md](../../../artifacts/evader-dominance-2026-10-08/README.md).
+
 A click stops the old controllers, resets the episode and score, and starts the
 new ones; the **window never closes** and the world is held (a dimmed arena with
 a countdown) until the new stack is up. Status shows
@@ -489,7 +504,7 @@ costmap."*
 
 ## Tests
 
-345 unit tests pass without ROS or pygame (374 with a sourced ROS install, which adds the launch-equivalence and ParamBridge tests) in `boids_swarm/test` + `boids_turtlesim` — runnable straight from a fresh
+454 unit tests are collected (`pytest -q --co`, with a sourced ROS install and pygame importable; the launch-equivalence and ParamBridge tests need ROS, some UI tests need pygame) in `boids_swarm/test` + `boids_turtlesim`; 23 more real-process integration tests are collected in `ros_test/`. Runnable straight from a fresh
 clone (`ros2_ws/pytest.ini` puts both packages on the path):
 
 ```bash

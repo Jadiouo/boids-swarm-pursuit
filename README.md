@@ -11,13 +11,18 @@ A ROS 2 Jazzy + pygame sandbox where 12 boid drones try to catch a target that m
 
 *Single hand-picked recording, not a statistic: 12 agents, `encircle`, `env:=obstacle_field`, seed 11, target 1.8x (shipped `params.yaml`), perception=perfect; captured after about 9.7 s. Blue = pursuers, red = target. Reproduction: [docs/media/README.md](docs/media/README.md). Do not extrapolate a capture rate from it. The demo uses the default perfect-perception baseline, not the sensor+relay mode measured below.*
 
+![control panel](docs/media/ui_mode_sensor_ros.png)
+
+*The in-window control panel: three mode buttons switch the whole stack without closing the window: **Baseline** (perfect perception), **Sensor + ROS** (simulated sensor, one-hop sighting relay) and **Nav2 target** (the target flees along Nav2-planned paths).*
+
 ## Highlights
 
 - **Sighting relay over ROS 2.** In `perception:=sensor` mode, one-hop `TargetSighting` topics built from each sender's simulated local sensor replace the simulator-side oracle, with range gate, freshness check, de-duplication and direct-over-relay arbitration. Developed in red→green slices with ROS integration tests ([SDD](SDD/Sdd_distributed_sighting_relay_v1.md), [TDD notes](docs/testing/distributed-sighting-relay-tdd.md)).
 - **Pre-registered experiment** ([plan](SDD/Sdd_relay_phase2_prereg.md), unmodified; committed in the private development history about 7 min before the first run by local file timestamps; the author date is preserved on the first commit here; history was squashed before publication, so this is self-reported, not externally registered; per-run start/finish times are not part of the tracked artifacts). QoS `BEST_EFFORT depth=1` dropped 48.8% of in-range sightings per receiver (bootstrap 95% CI 48.0-49.7%); `depth=10` only 1.8% (1.3-2.4%), 12 agents ([E1](artifacts/relay-e1-2026-10-08/README.md)). Post-hoc [E1b](artifacts/relay-e1b-followup-2026-10-08/README.md): depth 1 still dropped about 52% in real time. Shipped default is now `shared_sighting_qos_depth: 10`.
 - **Null result on capture.** Capture rate could not be distinguished between sharing modes at n=20 per cell (5/20 to 9/20, overlapping Wilson intervals); detecting 0.25 vs 0.45 would need about 89 runs per cell. So the experiment does **not** show that fixing the loss helps capture ([E1](artifacts/relay-e1-2026-10-08/README.md)).
-- **Nav2 evader (M7).** This is the SDD v3 M7 integration work (TF, costmap, planner, controller on a non-Gazebo simulator); it does not claim a better evader. `evader:=nav2` uses a self-written `nav2_bridge` (TF, odom, occupancy map, boids as PointCloud2), Nav2 planner and RegulatedPurePursuit controller servers, no BT navigator. Planning failures went from 44% to 5% / 20% (two repeats of the same code) after a red-team fix round ([sanity](artifacts/nav2-m7-sanity/README.md), [tuning](docs/testing/nav2-mppi-tuning.md)).
-- **Engineering practice.** Red-team review rounds ([review log](docs/planning/review-log.md)), pre-registration, a source fingerprint stored with every run, and an [artifacts index](artifacts/README.md) marking each folder as conclusion, diagnostic, exploration or voided. 261 collected pure tests and 15 real-process ROS integration tests.
+- **Nav2 evader (M7).** This is the SDD v3 M7 integration work (TF, costmap, planner, controller on a non-Gazebo simulator); it does not claim a better evader. `evader:=nav2` uses a self-written `nav2_bridge` (TF, odom, occupancy map, boids as PointCloud2), Nav2 planner and RegulatedPurePursuit controller servers, no BT navigator. Planning failures went from 44% to 5% / 20% (two repeats of the same code) after a red-team fix round ([sanity](artifacts/nav2-m7-sanity/README.md), [tuning](docs/testing/nav2-mppi-tuning.md)). A later dominance-region goal selector plus path hand-off smoothing raised the speed inside pure-Nav2 mode from 0.31 to 2.53 m/s and cut plan failures from 24/49 to 3/43 requests (n=5 seeds, non-registered; [comparison](artifacts/evader-dominance-2026-10-08/README.md)).
+- **Interactive control panel.** Mode buttons, five tabbed parameter pages (live vs. "restart" fields, Apply & restart), `ui_scale`, resizable window. The swarm stack runs in the background, so switching modes never closes the window ([details](ros2_ws/src/boids_swarm/README.md#control-panel)). The panel's default evader is `smart` (geodesic escape planner; [comparison](artifacts/evader-compare-2026-10-08/README.md)).
+- **Engineering practice.** Red-team review rounds ([review log](docs/planning/review-log.md)), pre-registration, a source fingerprint stored with every run, and an [artifacts index](artifacts/README.md) marking each folder as conclusion, diagnostic, exploration or voided. 454 collected unit tests and 23 collected real-process ROS integration tests (see Quickstart for how to run them).
 
 ## Architecture
 
@@ -30,6 +35,8 @@ flowchart LR
   tgt["target_controller<br/>reactive / adaptive / Nav2Evader"]
   br["nav2_bridge<br/>TF, /target/odom, /map, /boids_cloud"]
   nav["Nav2 planner_server + controller_server"]
+  sup["StackSupervisor (inside sim)"]
+  stack["swarm_stack.launch<br/>controllers, target, Nav2 (own process group)"]
   sim -- "/agentI/pose, /agentI/detections, /agentI/local_target_sighting, /clock, /simulation/episode_state" --> ctl
   ctl -- "/agentI/cmd_vel" --> sim
   ctl -- "/swarm/target_sightings (shared pub/sub topic; receiver-side range gate, app-level one hop)" --> ctl
@@ -39,6 +46,11 @@ flowchart LR
   sim -- "/target/pose, /swarm/poses" --> br
   br --> nav
   nav -- "/target/nav2_cmd_vel" --> tgt
+  sim --- sup
+  sup -- "starts / SIGINT-restarts" --> stack
+  stack -. "runs" .-> agents
+  sim -- "/ui/stack_status" --> panel(["panel (in sim window)"])
+  panel -- "/ui/mode_request" --> sup
 ```
 
 Details and parameters: [package README](ros2_ws/src/boids_swarm/README.md).
@@ -61,10 +73,12 @@ Needs ROS 2 Jazzy, Ubuntu 24.04, and pygame importable by `/usr/bin/python3`.
 sudo apt install python3-pygame
 scripts/quickstart.sh                  # build, pure tests, one headless 20 s episode (SKIP_ROS_TESTS=0 adds ROS tests)
 source /opt/ros/jazzy/setup.bash && source ros2_ws/install/setup.bash
-ros2 launch boids_swarm pursuit.launch.py num_agents:=12 env:=obstacle_field    # windowed demo with control panel
+ros2 launch boids_swarm pursuit.launch.py num_agents:=12 env:=obstacle_field    # windowed demo with control panel (smart evader, safe spawn)
+ros2 launch boids_swarm pursuit.launch.py env:=obstacle_field ui_scale:=2.0     # bigger panel and fonts (1.0-2.5, default 1.5)
+ros2 launch boids_swarm pursuit.launch.py headless:=true evader:=reactive       # no window; headless default is reactive
 ros2 launch boids_swarm pursuit.launch.py perception:=sensor sharing_mode:=ros evader:=nav2 env:=obstacle_field   # ROS relay + Nav2 target (needs ros-jazzy-navigation2)
-cd ros2_ws && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q             # 261 collected; without ROS sourced: 260 passed + 1 skipped
-# ROS integration tests (15, real processes, minutes): source BOTH /opt/ros/jazzy/setup.bash and ros2_ws/install/setup.bash
+cd ros2_ws && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q             # 454 collected unit tests (ROS sourced and pygame importable)
+# ROS integration tests (23 collected, real processes, minutes): source BOTH /opt/ros/jazzy/setup.bash and ros2_ws/install/setup.bash
 # (workspace already colcon-built), otherwise the boids_swarm_msgs import fails
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q src/boids_swarm/ros_test
 ```
@@ -77,7 +91,8 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q src/boids_swarm/ros_test
 - All experiments ran on one shared machine under background load (load average 14-24 in E1, 13-68 in E1b). E1b's fast-forward vs real-time contrast is confounded with that load.
 - E1 ran at `time_scale` 4; depth-1 loss was confirmed in real time only with 4 runs per cell (E1b, post-hoc).
 - Capture-rate effects are undetermined (n=20); oracle and ros relays carry different information, so oracle is not an upper bound for ros.
-- Nav2 target: pure Nav2 mode is only 9-22% of the time (the rest is blended or reactive near boids), in-game speed is lower than the reactive evader (1.9-2.4 vs 2.7-2.9 m/s), Nav2 does not react to boids itself, and self-trapping in a wall pocket is reduced but not solved (seed 6, 15 plan failures in one repeat). The sanity run is not an experiment: two repeats of identical code disagreed more than the evaders differed.
+- Nav2 target: with dominance-region selection and smoothing, pure Nav2 mode is still only about 11% of the time (it needs the nearest boid >= 4 m away, so the share is geometry-limited), plan failures are 3/43 vs 24/49 and in-mode speed 2.53 vs 0.31 m/s, but this is 5 seeds, non-registered ([artifact](artifacts/evader-dominance-2026-10-08/README.md)). In `obstacle_field` with 12 pursuers every evader is caught within 3-7 s, and the old and new selectors are indistinguishable there. Nav2 does not react to boids itself, and wall-pocket self-trapping is reduced but not solved (earlier sanity run: seed 6, 15 plan failures in one repeat). Wall-hugging of the Nav2 target was not re-measured in the dominance artifact. The earlier sanity run is not an experiment: two repeats of identical code disagreed more than the evaders differed.
+- UI mode uses `spawn_safe` (target starts >= 6 m from every boid) and `capture_grace` (1.5 s); the pre-registered experiments and headless runs use the original spawn rule, so panel results are not comparable with the registered ones.
 - The shipped target speed is 1.8x, not 2x (2x plus stamina was measured as impossible rather than hard).
 
 ## Repo map
