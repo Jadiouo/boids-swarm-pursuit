@@ -393,3 +393,69 @@ def test_smooth_start_is_a_feasible_arc_from_the_heading(theta, path):
     steps = [math.dist(a, b) for a, b in zip(out, out[1:])]
     assert max(steps) < 0.6                    # continuous, no jumps
     assert _min_radius(out[:len(out) // 2]) > 1.5   # turning part is drivable
+
+
+# ------------------------------------------------- nav2_* parameter wiring
+class _FakeParam:
+    def __init__(self, v):
+        self.value = v
+
+
+class _FakeNode:
+    """Just enough of rclpy.Node: declared params only, like the real one
+    (get_parameter on an undeclared name raises)."""
+
+    def __init__(self, overrides=None):
+        self.params = {}
+        self.overrides = overrides or {}
+
+    def has_parameter(self, k):
+        return k in self.params
+
+    def declare_parameter(self, k, v):
+        self.params[k] = self.overrides.get(k, v)
+
+    def get_parameter(self, k):
+        if k not in self.params:
+            raise KeyError(k)
+        return _FakeParam(self.params[k])
+
+
+def _evader_on(node):
+    from boids_swarm.behaviors.nav2_evader import Nav2Evader
+    ev = Nav2Evader.__new__(Nav2Evader)
+    ev.node = node
+    return ev
+
+
+def test_every_nav2_default_is_declarable_and_overridable():
+    from boids_swarm.behaviors.nav2_evader import Nav2Evader
+    node = _FakeNode(overrides={'nav2_selector': 'sampled',
+                                'nav2_dom_margin': 1.25,
+                                'nav2_smooth_start': 0,
+                                'nav2_goal_clearance': 1.5,
+                                'nav2_planner_radius': 0.4})
+    node.declare_parameter('nav2_goal_period', 0.75)   # already declared
+    Nav2Evader.declare_params(node)
+    ev = _evader_on(node)
+    assert ev._param('selector') == 'sampled'
+    assert ev._param('dom_margin') == 1.25
+    assert ev._param('smooth_start') == 0
+    assert ev._param('goal_clearance') == 1.5
+    assert ev._param('planner_radius') == 0.4
+    for k, v in Nav2Evader.DEFAULTS.items():
+        key = k if k == 'seed' else 'nav2_' + k
+        if key not in node.overrides and key != 'nav2_goal_period':
+            assert node.params.get(key, v) == v, key
+    assert 'nav2_seed' not in node.params      # seed is the node-wide one
+
+
+def test_declare_params_does_not_redeclare_existing():
+    from boids_swarm.behaviors.nav2_evader import Nav2Evader
+    node = _FakeNode()
+    node.declare_parameter('nav2_goal_period', 9.0)
+    node.declare_parameter = lambda k, v: (_ for _ in ()).throw(
+        AssertionError('re-declared ' + k)) if k in node.params \
+        else node.params.__setitem__(k, v)
+    Nav2Evader.declare_params(node)
+    assert node.params['nav2_goal_period'] == 9.0

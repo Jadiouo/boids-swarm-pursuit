@@ -82,6 +82,22 @@ def test_unreachable_cells_are_never_in_the_region():
     assert not np.isfinite(f.t_e[m.cell((10.0, 10.0))])
 
 
+def test_selector_never_picks_an_enclosed_unreachable_point():
+    """Why the Nav2 'unreachable goal' ros_test injects its goal: the
+    dominance selector cannot choose a point sealed off from the evader,
+    even when the pursuers are far and every reachable cell is dominated."""
+    ring = [(10.0 + 3.0 * math.cos(a), 10.0 + 3.0 * math.sin(a), 0.7)
+            for a in [2 * math.pi * k / 40 for k in range(40)]]
+    m = _map(ring)
+    cfg = DominanceConfig()
+    for ps in ([(17.0, 17.0)], [(2.0, 18.0), (18.0, 2.0)], []):
+        f = compute_fields(m, (3.0, 3.0), 0.0, ps, cfg)
+        c = select_goal(m, f, (3.0, 3.0), ps, None, cfg)
+        assert c.goal is not None
+        assert math.isfinite(f.d_self[m.cell(c.goal)]), c.goal
+        assert math.hypot(c.goal[0] - 10.0, c.goal[1] - 10.0) > 3.0 - 0.7
+
+
 def test_turning_costs_time_behind_the_evader():
     m = _map()
     cfg = DominanceConfig(margin_s=0.0)

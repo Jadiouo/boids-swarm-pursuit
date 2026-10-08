@@ -51,6 +51,10 @@ class TargetController(Node):
         self.declare_parameter('nav2_plan_timeout', 2.0)
         self.declare_parameter('nav2_blacklist_ttl', 6.0)   # s a failed goal stays banned
         self.declare_parameter('nav2_blacklist_radius', 1.0)
+        # the rest of Nav2Evader.DEFAULTS (selector, dom_margin, smooth_start,
+        # goal_clearance, planner_radius, map_resolution, ...): undeclared
+        # launch params would be silently ignored
+        Nav2Evader.declare_params(self)
         # Smart evader: strategy/weights overridable (`ros2 param set`, then
         # re-select evader to rebuild). Defaults live in SmartConfig.
         for _k in self.SMART_TUNABLES:

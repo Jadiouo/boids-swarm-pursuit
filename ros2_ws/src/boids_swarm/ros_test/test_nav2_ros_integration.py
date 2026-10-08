@@ -21,6 +21,7 @@ Two Nav2 stacks are brought up (~15 s each); total well under 2 minutes.
 """
 
 import importlib.util
+import json
 import math
 import os
 import signal
@@ -530,7 +531,14 @@ class TestEvaderFallback:
                 for a in [2 * math.pi * k / 40 for k in range(40)]]
         n.set_obstacles(ring)
         time.sleep(3.0)
+        # The default dominance selector only picks cells connected to the
+        # evader, so it never emits this sealed-off goal (see test_dominance).
+        # Inject it by replacing the sampled selector's picker and selecting
+        # that path explicitly (nav2_selector override via the env hook).
+        monkeypatch.setenv('NAV2_PARAMS_JSON',
+                           json.dumps({'nav2_selector': 'sampled'}))
         ev, ne, pick = self._evader(n, ring, lambda: (10.0, 10.0))
+        assert ev._param('selector') == 'sampled'
         ev.blacklist.ttl = 60.0          # outlast the observation window
         monkeypatch.setattr(ne, 'select_escape_goal', pick)
         try:
@@ -595,6 +603,14 @@ def _load_launch(name):
 def _launch_actions(env, seed):
     mod = _load_launch('pursuit.launch.py')
     ctx = LaunchContext()
+    # every launch argument at its pursuit.launch.py default, so a newly added
+    # argument can never leave a configuration undefined here again
+    declared = {}
+    for ent in mod.generate_launch_description().entities:
+        if ent.__class__.__name__ == 'DeclareLaunchArgument':
+            declared[ent.name] = ''.join(
+                getattr(x, 'text', '') for x in (ent.default_value or []))
+    ctx.launch_configurations.update(declared)
     defaults = {'num_agents': '4', 'strategy': 'intercept', 'game_mode': 'ai',
                 'seed': str(seed), 'headless': 'true', 'trails': 'false',
                 'capture_mode': 'hull', 'episodes_max': '1',

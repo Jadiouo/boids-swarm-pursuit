@@ -278,7 +278,7 @@ sim 建 comm graph(距離 < `comm_range` 連邊),用 union-find 把「看到目�
 
 **實驗與限制：**9 base runs（3 modes × seeds 11/23/37）加 3 個 seed 11 repeats，共 12 次；全數在模擬 30.02 秒 timeout，無捕獲，不能聲稱效能改善或策略勝出。4 個 ROS runs 的 collector 共同 local/shared key 全欄位一致為 1015/1015、1139/1139、1102/1102、955/955；BEST_EFFORT KEEP_LAST(1) 漏收部分 controller 已接受 key，不能稱全網 delivery 100%。coverage 是 receiver 機會覆蓋，非 packet ratio；age 是 simulation time，非 DDS wall latency；range gate 依 simulator pose。詳見[實驗證據](artifacts/sighting-relay-final-2026-10-07/README.md)。
 
-Source hash `b7f28c058e87b00ce14d0c6b192832c458e02c5536598a5abc517f6c26204acc`；[41 檔 snapshot](artifacts/sighting-relay-final-2026-10-07/source_snapshot.tar.gz) 84 KB，evidence 約 40.7 MB；本日誌不在 fingerprint 範圍。
+Source hash `b7f28c058e87b00ce14d0c6b192832c458e02c5536598a5abc517f6c26204acc`；41 檔 source snapshot（84 KB，僅保留於本機，未公開發布），evidence 約 40.7 MB；本日誌不在 fingerprint 範圍。
 
 **建議，尚未執行：**以固定少量 seed/場景查 sighting 失聯、重獲及攔截失敗，分辨控制、感知、通訊因素後再定改善與指標；之後才評估回放或延遲／丟包。目前無實驗執行，不預先承諾新功能。
 

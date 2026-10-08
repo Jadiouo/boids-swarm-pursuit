@@ -454,6 +454,18 @@ class Nav2Evader:
                 'selector': 'dominance', 'dom_margin': 0.6, 'smooth_start': 1,
                 'goal_clearance': 0.9, 'planner_radius': 0.3}
 
+    @classmethod
+    def declare_params(cls, node):
+        """Declare every nav2_<k> in DEFAULTS the node has not declared yet
+        (rclpy rejects/ignores undeclared launch parameters). `seed` is the
+        node-wide parameter, not nav2_seed."""
+        for k, v in cls.DEFAULTS.items():
+            if k == 'seed':
+                continue
+            key = f'nav2_{k}'
+            if not node.has_parameter(key):
+                node.declare_parameter(key, v)
+
     def _param(self, name, default=None):
         # tuning / A-B hook (tools/evader_compare.py): a JSON object of
         # nav2_<name> overrides in the environment wins over node params
