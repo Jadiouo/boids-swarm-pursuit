@@ -310,13 +310,14 @@ def test_wrap_text_respects_width_and_truncates_with_ellipsis():
 
 
 def test_every_mode_description_fits_the_description_box():
-    """4 lines of the real panel width at ~7.5 px/char must hold each mode
-    text, otherwise the explanation the user asked for gets truncated."""
-    measure = lambda t: len(t) * 7.5     # noqa: E731
+    """The description box (5 lines) at a pessimistic 8 px/char must hold
+    each mode text plus the ' Evader: reactive.' suffix, otherwise the
+    explanation the user asked for gets truncated with '...'."""
+    measure = lambda t: len(t) * 8.0     # noqa: E731
     width = 360 - 2 * ui.PAD
     for mode, text in sc.MODE_DESCRIPTIONS.items():
-        lines = ui.wrap_text(text, width, measure)
-        assert len(lines) <= 4, (mode, len(lines))
+        lines = ui.wrap_text(text + ' Evader: adaptive.', width, measure)
+        assert len(lines) <= 5, (mode, len(lines))
 
 
 # --- PanelState: which clicks are sent, which are staged -----------------------

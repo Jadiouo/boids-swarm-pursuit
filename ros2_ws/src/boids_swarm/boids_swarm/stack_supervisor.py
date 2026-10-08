@@ -69,6 +69,7 @@ class StackSupervisor:
         self._after_stop = None     # ('failed', reason) once stopped
         self._probe_note = ''
         self._n = 0
+        self._logs = []
         self.stacks_started = 0
 
     # --- public -----------------------------------------------------------
@@ -151,9 +152,20 @@ class StackSupervisor:
                 deadline = self._clock() + self.kill_wait
                 while self._clock() < deadline and self._group_alive_poll():
                     self._sleep(0.05)
+        failed = self.state == FAILED
         self._reap()
         self.state = IDLE
         self.detail = ''
+        if not failed:                  # keep a failed stack's log for diagnosis
+            self._remove_logs()
+
+    def _remove_logs(self):
+        for path in self._logs:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        self._logs = []
 
     # --- internals --------------------------------------------------------
     def _pending_pop(self):
@@ -192,6 +204,7 @@ class StackSupervisor:
         self.log_path = os.path.join(
             d, f'swarm_stack_{os.getpid()}_{self._n}.log')
         self._log = open(self.log_path, 'wb')
+        self._logs.append(self.log_path)
 
     def _close_log(self):
         if self._log is not None:

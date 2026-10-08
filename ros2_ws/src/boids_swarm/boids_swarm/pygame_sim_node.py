@@ -91,6 +91,11 @@ class Nav2Probe:
             except Exception:
                 self.done = False
             self.fut = None
+            if self.done:
+                try:
+                    self.node.destroy_client(self.client)
+                except Exception:
+                    pass
         elif now - self.t > 2.0:
             self.fut = None                      # lost reply: ask again
         return self.done
@@ -178,7 +183,8 @@ class PygameSimNode(Node):
         # (boid_controller x N, target_controller). The panel is immediate
         # mode and needs a value to draw every frame; querying N remote
         # nodes per frame would be absurd, so the sim keeps a local copy and
-        # ParamBridge writes both sides on every edit. params.yaml uses the
+        # ParamBridge writes the copy back once every addressed controller has
+        # confirmed the edit. params.yaml uses the
         # `/**` wildcard, so these pick up the same defaults the real owners
         # do — and pursuit.launch.py forwards the launch args here too.
         self.declare_parameter('pursuit_strategy', 'auto')

@@ -346,3 +346,20 @@ def test_watch_parent_interrupts_the_launch_when_the_sim_is_gone():
                       start=False)
     th.run()
     assert hits == ['int']
+
+
+def test_clean_shutdown_removes_logs_but_a_failed_stack_keeps_its_log(
+        world, sup):
+    import os
+    sup.start(['x'], settle_s=0.1)
+    path = sup.log_path
+    assert os.path.exists(path)
+    sup.shutdown()
+    assert not os.path.exists(path)
+    sup.start(['y'], probe=lambda: False)
+    path2 = sup.log_path
+    world.procs[-1].die(2, leftover=False)
+    run(world, sup, 0.2)
+    assert sup.state == 'failed'
+    sup.shutdown()                       # e.g. window closed after a failure
+    assert os.path.exists(path2)

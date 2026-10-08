@@ -77,35 +77,105 @@ ros2 launch boids_swarm pursuit.launch.py headless:=true episodes_max:=6 \
 Capture (SDD §4.5): `capture_mode:=hull` (default; target inside convex hull
 of ≥`capture_k` boids within `d_capture`) | `escape_blocked` | `tag` (HP).
 
-## Control panel (M15)
+## Control panel
 
-The window is `window_px + panel_px` wide: arena on the left, a live control
-panel on the right. Strategy, evader brain, capture mode, ai/human, the
-pursuit weights and the target's speed/turn caps are all editable **with the
-mouse while the sim runs** — plus RESET EPISODE and PAUSE.
+The window is `window_px + panel_px` wide: arena on the left, the control
+panel on the right. It has three parts: a **mode bar** with a one-paragraph
+explanation and a live stack status, five **tabs** of fields, and a footer
+(**Apply & restart**, reset episode, pause).
 
 ```bash
 ros2 launch boids_swarm pursuit.launch.py env:=obstacle_field   # panel is on by default
-ros2 launch boids_swarm pursuit.launch.py ui:=false             # arena only
+ros2 launch boids_swarm pursuit.launch.py ui:=false             # arena only, no panel
 ```
 
-Two properties worth knowing:
+![baseline](../../../docs/media/ui_mode_baseline.png)
 
-- **The panel stores nothing.** It is immediate mode: each frame it reads the
-  live ROS parameter and draws that. A mouse edit and a `ros2 param set` from
-  a terminal therefore cannot disagree — there is one source of truth.
-- **`pursuit_strategy` does not live on the sim.** It lives on N separate
-  controller processes, so one click is N `SetParameters` calls. The panel
-  only *enqueues* the change; a ROS timer on the executor thread drains the
-  queue and issues the calls, keeping all rclpy work on one thread while
-  pygame owns the main thread. Requests coalesce per parameter, so dragging a
-  slider sends one fan-out per tick instead of one per mouse-move event.
+### Modes (switch inside the open window)
 
-`perception` and `env` are shown read-only: switching them at runtime would
-mean rebuilding subscriptions and regenerating + rebroadcasting the layout,
-so they stay launch-time decisions.
+| Mode | perception | sharing | evader | What it is for |
+|---|---|---|---|---|
+| **Baseline** | perfect | legacy (in-sim oracle) | smart (reactive if the brain is not installed) | every boid knows true positions: study swarm tactics without sensing limits |
+| **Sensor + ROS relay** | sensor | ros | smart (or reactive) | each boid senses only through its own FOV/range and shares sightings one hop over a ROS topic |
+| **Nav2 target** | sensor | ros | nav2 | the target flees along Nav2-planned paths; ~5-8 s warm-up while Nav2 activates |
 
-Panel off automatically when `headless:=true` (no window, no mouse).
+A click stops the old controllers, resets the episode and score, and starts the
+new ones; the **window never closes** and the world is held (a dimmed arena with
+a countdown) until the new stack is up. Status shows
+`starting / warming up / running / stopping / FAILED: <reason>`; a failure
+keeps the tail of the stack log (`/tmp/swarm_stack_<pid>_<n>.log`).
+`sharing_mode=ros` requires `perception=sensor`; the panel moves the partner
+field for you and refuses contradictory combinations. Choosing `nav2` on the
+Target tab is the same as clicking the Nav2 mode. The evader list only shows
+brains the installed `target_controller` can build (`TargetController.BRAINS`),
+so `smart` appears exactly when that brain exists.
+
+Scripted switching (and the integration tests) use a topic instead of a click:
+
+```bash
+ros2 topic pub --once /ui/mode_request std_msgs/msg/String "{data: sensor_ros}"
+ros2 topic pub --once /ui/mode_request std_msgs/msg/String \
+  '{data: "{\"mode\": \"nav2\", \"overrides\": {\"num_agents\": 6}}"}'
+ros2 topic echo /ui/stack_status        # JSON: state, mode, generation, pid, ...
+```
+
+### Fields
+
+Fields marked with the amber **restart** tag are *staged*: editing them changes
+nothing until **APPLY & RESTART** (`pending` + a count on the button). Everything
+else is live: a parameter call goes straight to the node(s).
+
+| Tab | Live | Needs restart |
+|---|---|---|
+| **Sensor** | `fov` [rad], `sensor_range` [m], `occlusion_enabled`, `range_sigma` [m/m], `bearing_sigma` [rad], `p_miss` | `perception` |
+| **Comms** | `radio_range` [m] (sim + boids), `comm_range` [m], `oracle_max_hops`, `comm_jitter` [m], `sighting_timeout` [s], legacy mesh toggle | `sharing_mode` (legacy/off/oracle/ros), `shared_sighting_qos_depth` |
+| **Swarm** | `pursuit_strategy`, `w_separation`, `w_alignment`, `w_cohesion`, `safe_distance` [m], `sensing_radius` [m], `w_pursuit`, `lead_time` [s], `ring_radius_start` [m], `commit_distance` [m] (sent to all N boids) | |
+| **Target** | `evader` (reactive/adaptive/smart swap live; anything involving nav2 restarts), `target_speed_multiplier` [x] and `target_omega_max` [rad/s] (set on the sim **and** `target_controller`), stamina on/drain/regen | |
+| **Scene** | `episode_time_limit` [s], `capture_mode`, `d_capture` [m], `capture_k`, target driver (ai/human), trails | `num_agents`, `env`, `seed` |
+
+`num_agents` / `env` / `seed` are applied by rebuilding the world inside the
+running sim (new entity lists, layout regenerated with the same
+`WorldGenerator`/`obstacles_for_env` the launch uses, so controllers and sim
+get identical obstacles) plus a stack restart; no re-launch needed. Live values
+you tuned are carried into the restarted controllers.
+
+![scene tab with pending edits](../../../docs/media/ui_tab_scene.png)
+
+| ![sensor](../../../docs/media/ui_tab_sensor.png) | ![comms](../../../docs/media/ui_tab_comms.png) |
+|---|---|
+| ![swarm](../../../docs/media/ui_tab_swarm.png) | ![target](../../../docs/media/ui_tab_target.png) |
+
+![nav2 warm-up](../../../docs/media/ui_mode_nav2.png)
+
+The pictures are produced by `tools/ui_screenshots.py` (real panel code, dummy
+video driver, no stack started).
+
+### How it works
+
+- **Two launch files.** With the panel on (`ui:=true`, not headless),
+  `pursuit.launch.py` starts only the window-owning sim. Controllers, target and
+  (for nav2) the Nav2 servers are `swarm_stack.launch.py`, started by the
+  sim's `StackSupervisor` in its own session / process group. `headless:=true`
+  and `ui:=false` launch everything from `pursuit.launch.py` exactly as before
+  (a recorded golden file in `test/golden/` pins nodes and parameters).
+- **Switching** = `killpg(SIGINT)` the old group, `SIGKILL` after 6 s, wait until
+  *no* process of the group is left, then start the new stack. Everything is
+  polled once per frame, so the window never blocks.
+- **No orphans.** `atexit`, SIGTERM/SIGHUP handling and the main loop's
+  `finally` stop the stack; if the sim is `SIGKILL`ed, the stack's own parent
+  watchdog shuts it down within ~1 s.
+- **The panel stores nothing.** Each frame it reads the live value and draws
+  that. Remote parameters (`AGENTS`/`TARGET` rows) are read from a local mirror
+  which `ParamBridge` writes back **only after every addressed node confirmed**
+  the change, so a rejected edit leaves the display on the real value.
+- **Threading.** pygame owns the main thread; the panel only enqueues changes
+  and a ROS timer on the executor thread issues the `SetParameters` calls
+  (requests coalesce per parameter while dragging a slider).
+
+Limits: Nav2's controller speed/turn limits are derived from `params.yaml` when
+the Nav2 stack starts, so changing the target speed live in Nav2 mode does not
+retune Nav2 until the next restart. `time_scale` only exists headless. The
+panel is off when `headless:=true` (no window, no mouse).
 
 ## Live tuning
 
@@ -400,7 +470,7 @@ costmap."*
 
 ## Tests
 
-204 pure-math unit tests in `boids_swarm/test` (223 with `boids_turtlesim`) — no ROS, no pygame, runnable straight from a fresh
+345 unit tests pass without ROS or pygame (374 with a sourced ROS install, which adds the launch-equivalence and ParamBridge tests) in `boids_swarm/test` + `boids_turtlesim` — runnable straight from a fresh
 clone (`ros2_ws/pytest.ini` puts both packages on the path):
 
 ```bash
@@ -413,6 +483,17 @@ association/circling), comms mesh, world generation, adaptive evader,
 Nav2 evader decision logic (escape-goal scoring, grid reachability/lead/pocket,
 heading-space blend, goal blacklist and plan sequencing, arena wall/footprint
 cost model, planner start, launch obstacle sync).
+
+Control panel / modes: pure tests for mode mapping, supervisor state machine
+(fake Popen), panel layout and staging, plus launch-equivalence checks
+(`test_launch_compat.py`, needs a sourced ROS) and a real-launch integration
+test (needs a built workspace; use a free `ROS_DOMAIN_ID`):
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ROS_DOMAIN_ID=<free id> \\
+  python3 -m pytest -q src/boids_swarm/ros_test/test_ui_modes_ros_integration.py
+# add `-m "not slow"` to skip the Nav2 mode switch
+```
 
 M7 integration (needs a built workspace, pygame on `PYTHONPATH`, 12 tests, ~70 s,
 run on its own, not together with the sighting integration file):

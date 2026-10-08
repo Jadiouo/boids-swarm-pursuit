@@ -143,8 +143,8 @@ def _restart_tag(pg, surf, fonts, x, y, pending):
     U+21BB renders as tofu on hosts without the font). Returns its width."""
     col = WARN if pending else DIM
     cx, cy = x + 5, y + 7
-    pg.draw.arc(surf, col, (cx - 5, cy - 5, 10, 10), 0.6, 5.7, 2)
-    pg.draw.polygon(surf, col, [(cx + 5, cy - 4), (cx + 6, cy + 2),
+    pg.draw.arc(surf, col, (cx - 5, cy - 5, 11, 11), 0.9, 5.6, 1)
+    pg.draw.polygon(surf, col, [(cx + 3, cy - 6), (cx + 7, cy - 1),
                                 (cx + 1, cy - 1)])
     txt = fonts['tiny'].render('restart' if not pending else 'pending',
                                True, col)
@@ -770,7 +770,7 @@ def build_panel(strategies, capture_modes, evaders, envs, width,
     modes = [(m, sc.MODE_SHORT[m]) for m in (mode_names or sc.MODES)]
     tabs = _tabs(strategies, capture_modes, evaders, envs)
     tab_bar = TabBar(list(tabs))
-    header = [ModeBar(modes), TextBlock('mode_desc', lines=4),
+    header = [ModeBar(modes), TextBlock('mode_desc', lines=5),
               StatusBar(), tab_bar]
     footer = [ApplyButton(),
               ButtonPair([('reset_episode', 'RESET EPISODE', None),
