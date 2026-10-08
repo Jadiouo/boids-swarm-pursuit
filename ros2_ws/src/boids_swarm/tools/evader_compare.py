@@ -80,6 +80,47 @@ def metrics(track, obstacles):
             'duration': track[-1][0] - track[0][0]}
 
 
+# A/B variants: `<brain>-sampled` is the pre-dominance goal selector (random
+# candidates scored by lead / openness; Nav2: select_escape_goal), the plain
+# name is the current default (dominance region). Kept so the two can be
+# compared on identical seeds.
+OLD_SELECTOR = {
+    'smart': ('SMART_PARAMS_JSON',
+              {'smart_selector': 'sampled', 'smart_w_dom': 0.0}),
+    'nav2': ('NAV2_PARAMS_JSON', {'nav2_selector': 'sampled'}),
+}
+
+
+def split_variant(name):
+    """'smart-sampled' -> ('smart', env var, json) ; 'smart' -> ('smart', None, None)"""
+    base, _, var = name.partition('-')
+    if var == 'sampled' and base in OLD_SELECTOR:
+        env, js = OLD_SELECTOR[base]
+        return base, env, js
+    if var:
+        raise SystemExit(f'unknown evader variant {name}')
+    return base, None, None
+
+
+def mode_stats(track, status):
+    """Time share and mean speed per Nav2 blend mode, from the 10 Hz
+    /target/evader_status stream (mode at the latest status <= each pose)."""
+    if not status or not track:
+        return {}
+    ts = [t for t, _ in status]
+    share, spd, cnt = {}, {}, 0
+    j = 0
+    for (t, _x, _y, v) in track:
+        while j + 1 < len(ts) and ts[j + 1] <= t:
+            j += 1
+        m = status[j][1].get('mode', '?')
+        share[m] = share.get(m, 0) + 1
+        spd[m] = spd.get(m, 0.0) + v
+        cnt += 1
+    return {m: {'share': share[m] / cnt, 'speed': spd[m] / share[m]}
+            for m in share}
+
+
 # ------------------------------------------------------------------ one run
 def run_one(a):
     os.environ['ROS_DOMAIN_ID'] = str(a.domain)
@@ -90,18 +131,24 @@ def run_one(a):
     from boids_swarm_msgs.msg import EpisodeState
     from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
     from rosgraph_msgs.msg import Clock
+    from std_msgs.msg import String
     from turtlesim.msg import Pose
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from boids_swarm.world_gen import WorldGenerator
     obstacles = WorldGenerator(a.seed, ARENA).generate(a.env).obstacles
 
+    evader, var_env, var_json = split_variant(a.evader)
     if a.smart_json:
         os.environ['SMART_PARAMS_JSON'] = a.smart_json
+    if var_env:
+        cur = json.loads(os.environ.get(var_env) or '{}')
+        cur.update(var_json)
+        os.environ[var_env] = json.dumps(cur)
     log = open(str(a.out) + '.log', 'w')
     extra = [f'time_scale:={a.time_scale}'] if a.time_scale else []
     cmd = ['ros2', 'launch', 'boids_swarm', 'pursuit.launch.py',
            f'num_agents:={a.agents}', f'env:={a.env}', f'seed:={a.seed}',
-           f'evader:={a.evader}', 'headless:=true', 'ui:=false',
+           f'evader:={evader}', 'headless:=true', 'ui:=false',
            'episodes_max:=2', f'time_limit:={a.time_limit}',
            'perception:=perfect', 'sharing_mode:=legacy'] + extra
 
@@ -112,6 +159,7 @@ def run_one(a):
             s.track = []
             s.last = None
             s.ep_starts = []
+            s.status = []
             s.create_subscription(Clock, '/clock', s.on_clock, 10)
             s.create_subscription(
                 EpisodeState, '/simulation/episode_state',
@@ -120,6 +168,14 @@ def run_one(a):
                 QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE,
                            durability=DurabilityPolicy.TRANSIENT_LOCAL))
             s.create_subscription(Pose, '/target/pose', s.on_pose, 50)
+            s.create_subscription(String, '/target/evader_status',
+                                  s.on_status, 50)
+
+        def on_status(s, m):
+            try:
+                s.status.append((s.t, json.loads(m.data)))
+            except ValueError:
+                pass
 
         def on_clock(s, m):
             s.t = m.clock.sec + m.clock.nanosec * 1e-9
@@ -173,11 +229,20 @@ def run_one(a):
     else:
         track = []
     t0 = track[0][0] if track else 0.0
+    st = [(t, d) for t, d in node.status if t >= t0]
     track = [(t - t0, x, y, v) for t, x, y, v in track]
     m = re.search(r'EPISODE 2 result=(\w+) t=([\d.]+)s', text)
     res = metrics(track, obstacles)
+    if st:
+        res['modes'] = mode_stats([(t + t0, x, y, v) for t, x, y, v in track],
+                                  st)
+        keys = ('plan_requests', 'plan_ok', 'plan_fail', 'plan_timeout',
+                'goals', 'follow_abort', 'follow_done')
+        res['nav2_stats'] = {k: st[-1][1].get(k, 0) - st[0][1].get(k, 0)
+                             for k in keys}
     res['track2hz'] = [[round(v, 2) for v in p] for p in node.track[::15]]
     res.update(evader=a.evader, env=a.env, seed=a.seed,
+               time_limit=a.time_limit,
                valid=bool(m) and bool(track),
                captured=bool(m and m.group(1) == 'captured'),
                capture_t=(float(m.group(2)) if m and m.group(1) == 'captured'
@@ -285,6 +350,56 @@ def summarize(a):
               f"{v['mean_speed']['median']:.2f} | {v['captures']} | "
               f"{'-' if ct is None else format(ct['median'], '.1f')} | "
               f"{v['stuck_events_total']} in {v['stuck_runs']} runs")
+    survival_table(runs)
+
+
+EARLY_S = 3.0      # captures this early say nothing about the evader
+
+
+def survival_table(runs):
+    """Survival time (capture time, or the time limit when not caught),
+    captures, wall/obstacle touch share; rounds caught within EARLY_S of the
+    start are listed separately and left out of the 'rest' rows."""
+    groups = {}
+    for r in runs:
+        if r.get('valid'):
+            groups.setdefault((r['env'], r['evader']), []).append(r)
+    print('\nenv/evader | rounds | early(<3s) | rest: surv mean/med | '
+          'caught | touch(w+o) pooled | near pooled')
+    for (env, ev), rs in sorted(groups.items()):
+        early = [r for r in rs if r['captured'] and r['capture_t'] < EARLY_S]
+        rest = [r for r in rs if r not in early]
+        if not rest:
+            print(f'{env}/{ev} | {len(rs)} | {len(early)} | -')
+            continue
+        surv = [r['capture_t'] if r['captured'] else r.get('time_limit', 30.0)
+                for r in rest]
+        print(f"{env}/{ev} | {len(rs)} | {len(early)} | "
+              f"{statistics.mean(surv):.1f}/{statistics.median(surv):.1f} s | "
+              f"{sum(r['captured'] for r in rest)}/{len(rest)} | "
+              f"{100*_pooled(rest, ('wall_touch', 'obs_touch')):.0f}% | "
+              f"{100*_pooled(rest, ('wall_near', 'obs_near')):.0f}%")
+    nav = [r for r in runs if r.get('modes')]
+    if nav:
+        print('\nnav2: evader | mode share (pure nav2) | speed in nav2 | '
+              'speed all | plan fail/requests | goals/min')
+        by = {}
+        for r in nav:
+            by.setdefault((r['env'], r['evader']), []).append(r)
+        for k, rs in sorted(by.items()):
+            share = statistics.mean(r['modes'].get('nav2', {}).get('share', 0)
+                                    for r in rs)
+            sp = [r['modes']['nav2']['speed'] for r in rs
+                  if 'nav2' in r['modes']]
+            req = sum(r['nav2_stats']['plan_requests'] for r in rs)
+            fail = sum(r['nav2_stats']['plan_fail']
+                       + r['nav2_stats']['plan_timeout'] for r in rs)
+            dur = sum(r['duration'] for r in rs)
+            goals = sum(r['nav2_stats']['goals'] for r in rs)
+            print(f"{k[0]}/{k[1]} | {100*share:.0f}% | "
+                  f"{statistics.mean(sp) if sp else float('nan'):.2f} | "
+                  f"{statistics.mean(r['mean_speed'] for r in rs):.2f} | "
+                  f"{fail}/{req} | {60*goals/max(dur, 1e-9):.1f}")
 
 
 def main():

@@ -19,10 +19,12 @@ clients. Mode is observable on `/target/evader_status` (JSON).
 
 import json
 import math
+import os
 import random
 from dataclasses import dataclass
 
 from ..geometry import clamp, to_twist
+from . import dominance as dom
 from .evasion import ReactiveEvader
 
 
@@ -335,10 +337,12 @@ class Nav2Evader:
                       'ticks_nav2': 0, 'ticks_blend': 0, 'ticks_reactive': 0,
                       'ticks_unavailable': 0}
         self._self = None
+        self._theta = 0.0
         self._pursuers = []
         self._mode_time = {'nav2': 0.0, 'blend': 0.0, 'reactive': 0.0}
         self._last_tick_t = None
         self.goal = None
+        self.dom_empty = False
         self._rng = random.Random(self._param('seed', 7))
         self._nav2_cmd, self._nav2_cmd_t = None, -1e9
         self._fallback_until = -1e9
@@ -376,9 +380,18 @@ class Nav2Evader:
                 'reactive_radius': 4.0, 'reactive_min': 1.5,
                 'cmd_timeout': 0.3, 'fallback_hold': 1.0,
                 'plan_timeout': 2.0, 'blacklist_ttl': 6.0,
-                'blacklist_radius': 1.0, 'map_resolution': 0.1, 'seed': 7}
+                'blacklist_radius': 1.0, 'map_resolution': 0.1, 'seed': 7,
+                'selector': 'dominance', 'dom_margin': 0.6,
+                'goal_clearance': 0.9}
 
     def _param(self, name, default=None):
+        # tuning / A-B hook (tools/evader_compare.py): a JSON object of
+        # nav2_<name> overrides in the environment wins over node params
+        extra = os.environ.get('NAV2_PARAMS_JSON')
+        if extra:
+            ov = json.loads(extra)
+            if f'nav2_{name}' in ov:
+                return ov[f'nav2_{name}']
         if self.node is not None:
             key = name if name == 'seed' else f'nav2_{name}'
             try:
@@ -425,6 +438,7 @@ class Nav2Evader:
     # -- brain interface -----------------------------------------------------
     def compute(self, self_xy, self_theta, pursuers):
         self._self = (self_xy[0], self_xy[1])
+        self._theta = self_theta
         self._pursuers = list(pursuers)
         return self.reactive.compute(self_xy, self_theta, pursuers)
 
@@ -491,6 +505,44 @@ class Nav2Evader:
         return plan_start(self._self, self.bmin, self.bmax, self.obstacles,
                           self.body_radius + self._param('map_resolution') / 2)
 
+    def _dom_cfg(self):
+        n = self.node
+        def get(name, default):
+            try:
+                return float(n.get_parameter(name).value)
+            except Exception:
+                return default
+        try:
+            v_self = float(n._v_max())
+        except Exception:
+            v_self = 3.6
+        return dom.DominanceConfig(
+            v_self=v_self, v_purs=get('agent_max_speed', 2.0),
+            omega=get('target_omega_max', 1.2),
+            margin_s=float(self._param('dom_margin')),
+            goal_clearance=float(self._param('goal_clearance')))
+
+    def _pick_goal(self, now):
+        """(goal, score) from the dominance region (default) or the old
+        sampled scorer (`nav2_selector:=sampled`)."""
+        emap = self._ensure_map()
+        if self._param('selector') == 'sampled':
+            return select_escape_goal(
+                self._rng, self._self, self._pursuers, self.obstacles,
+                self.bmin, self.bmax, self.goal, self.cfg, emap=emap,
+                blocked=lambda g: self.blacklist.blocked(g, now))
+        dc = self._dom_cfg()
+        purs = [(p[0], p[1]) for p in self._pursuers]
+        f = dom.compute_fields(emap, self._self, self._theta, purs, dc)
+        r = self._param('blacklist_radius')
+        ch = dom.select_goal(
+            emap, f, self._self, purs, self.goal, dc,
+            exclude=[(x, y, r) for (x, y) in self.blacklist.active(now)])
+        self.dom_empty = ch.empty
+        if ch.goal is None:
+            return tuple(self._self), -math.inf
+        return ch.goal, ch.score
+
     def _goal_tick(self):
         now = self._now()
         if self._self is None:
@@ -507,11 +559,7 @@ class Nav2Evader:
         if not (self._plan_ac.server_is_ready()
                 and self._follow_ac.server_is_ready()):
             return
-        goal, score = select_escape_goal(
-            self._rng, self._self, self._pursuers, self.obstacles,
-            self.bmin, self.bmax, self.goal, self.cfg,
-            emap=self._ensure_map(),
-            blocked=lambda g: self.blacklist.blocked(g, now))
+        goal, score = self._pick_goal(now)
         if score == -math.inf:             # nothing reachable / allowed
             self.goal = None
             return

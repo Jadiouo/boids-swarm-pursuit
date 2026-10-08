@@ -39,6 +39,7 @@ import numpy as np
 from scipy import ndimage as ndi
 
 from ..geometry import unit, wrap_angle
+from . import dominance as dom
 from .escape_map import EscapeMap
 from .evasion import ReactiveEvader
 
@@ -49,6 +50,9 @@ class SmartConfig:
     decision_hz: float = 5.0        # goal re-evaluation rate
     control_rate_hz: float = 30.0   # calls per second (sets the step clock)
     candidates: int = 80            # fixed pool of escape points scored per decision
+    selector: str = 'dominance'     # dominance | sampled (A/B: the old scorer)
+    dom_margin: float = 0.6         # s the target must beat every pursuer by
+    w_dom: float = 0.8              # rollout cost: arriving where a pursuer is first
     w_lead: float = 1.0
     w_open: float = 0.0             # goal openness (rollouts use w_clear)
     w_away: float = 0.4
@@ -152,6 +156,9 @@ class SmartEvader:
         self._snap = None               # inputs frozen at phase 0
         self._d_purs = None
         self._d_self = None
+        self._t_p = None                # pursuer arrival-time field (s)
+        self.region = None              # dominance region mask of the last decision
+        self.dom_empty = False          # ... was empty (break-out goal)
         self.goal = None                # (x, y) world
         self._d_goal = None
         self._goal_score = -math.inf
@@ -194,6 +201,7 @@ class SmartEvader:
                 or abs(self.bmax[1] - d) > self.cfg.rebuild_shift):
             self._build_map()
             self.goal = self._d_goal = None
+            self._t_p = self.region = None
             self._phase = None
             self._since = self._period
         self._geo.bmin, self._geo.bmax = self.bmin, self.bmax
@@ -270,7 +278,46 @@ class SmartEvader:
         return (c.w_lead * lead_n + c.w_open * open_n + c.w_away * away
                 - c.w_dead * dead), (wx, wy), t_self
 
+    def _dom_cfg(self):
+        c = self.cfg
+        v = c.target_speed
+        if c.use_stamina:     # an empty tank means cruise speed
+            v = c.cruise_speed + (c.target_speed - c.cruise_speed) \
+                * min(1.0, self.stamina / 0.3)
+        return dom.DominanceConfig(
+            v_self=max(v, 0.1), v_purs=c.pursuer_speed, omega=c.omega_max,
+            margin_s=c.dom_margin, hysteresis=c.hysteresis,
+            min_goal_dist=c.min_goal_dist, max_goal_dist=c.max_goal_dist + 2.0)
+
+    def _select_goal_dominance(self, xy):
+        """Goal from the dominance region (see behaviors/dominance.py); the
+        two geodesic fields were computed in earlier phases."""
+        e = self.emap
+        dc = self._dom_cfg()
+        purs = [(p[0], p[1]) for p in self._snap[1]]
+        if self._d_purs is None:
+            d_p = np.full((e.h, e.w), np.inf)
+        else:
+            d_p = self._d_purs
+        t_p = d_p / dc.v_purs
+        t_e = dom.turn_time(e, self._d_self, xy, self._snap[2], dc)
+        f = dom.assemble_fields(e, xy, self._d_self, t_e, d_p, t_p, dc)
+        ch = dom.select_goal(e, f, xy, purs, self.goal, dc)
+        self._t_p = t_p
+        self.region, self.dom_empty = f.region, ch.empty
+        if ch.goal is None:
+            self._goal_dirty = False
+            return
+        self._goal_score = ch.score
+        if ch.switched:
+            self.goal = ch.goal
+            self._goal_dirty = True
+        else:
+            self._goal_dirty = False
+
     def _select_goal(self, xy):
+        if self.cfg.selector == 'dominance':
+            return self._select_goal_dominance(xy)
         c, e = self.cfg, self.emap
         pursuers = self._snap[1]
         cent = self._centroid_of(pursuers) if pursuers else None
@@ -506,6 +553,13 @@ class SmartEvader:
                                         + 0.5 * danger.mean(axis=0))
         if pursuers and c.w_enclose > 0.0:
             cost = cost + c.w_enclose * self._enclosure(px, py, pos, n_t)
+        if c.selector == 'dominance' and c.w_dom > 0.0 \
+                and self._t_p is not None and pursuers:
+            # arriving at a spot a pursuer can reach first (+ margin) is
+            # outside the dominance region
+            viol = np.clip((t[None, :] + c.dom_margin - self._t_p[iy, ix])
+                           / 1.0, 0.0, 1.0)
+            cost = cost + c.w_dom * (viol.max(axis=1) + 0.5 * viol.mean(axis=1))
         # stay off surfaces
         clr = e.clearance[iy, ix]
         cost = cost + c.w_clear * np.clip(1.0 - clr / 0.9, 0.0, 1.0).mean(axis=1)

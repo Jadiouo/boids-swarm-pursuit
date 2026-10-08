@@ -105,7 +105,8 @@ class TargetController(Node):
     # smart_<name> ROS parameters (defaults come from SmartConfig); the
     # speeds / omega / panic / stamina values are derived from the sim's own
     # parameters below so they cannot drift from the world.
-    SMART_TUNABLES = ('decision_hz', 'candidates', 'w_lead', 'w_open',
+    SMART_TUNABLES = ('selector', 'dom_margin', 'w_dom', 'decision_hz',
+                      'candidates', 'w_lead', 'w_open',
                       'w_away', 'w_dead', 'hysteresis', 'w_progress',
                       'w_danger', 'w_clear', 'w_enclose', 'horizon',
                       'rollouts')
