@@ -204,9 +204,11 @@ def stack_args(mode, overrides=None, base=None, available=ALL_EVADERS,
 
 
 def stack_command(args, launch_file='swarm_stack.launch.py'):
-    """argv for `ros2 launch` (no shell: values are passed verbatim)."""
+    """argv for `ros2 launch` (no shell: values are passed verbatim).
+    Empty values are left out: `ros2 launch` rejects `key:=` as malformed,
+    and an empty value means "use the launch default" anyway."""
     return (['ros2', 'launch', 'boids_swarm', launch_file]
-            + [f'{k}:={v}' for k, v in args.items()])
+            + [f'{k}:={v}' for k, v in args.items() if v != ''])
 
 
 def expected_nodes(cfg):
@@ -216,3 +218,31 @@ def expected_nodes(cfg):
     if cfg.get('game_mode', 'ai') == 'ai':
         names.append('/target_controller')
     return names
+
+
+def parse_mode_request(text, available=ALL_EVADERS):
+    """Payload of `/ui/mode_request` -> overrides dict for the sim.
+
+    Accepts a bare mode name (``sensor_ros``), or JSON
+    ``{"mode": "nav2", "overrides": {"num_agents": 6}}`` /
+    ``{"overrides": {...}}`` (no mode). Raises ConfigError on garbage."""
+    text = (text or '').strip()
+    if not text:
+        raise ConfigError('empty mode request')
+    mode, extra = None, {}
+    if text.startswith('{'):
+        try:
+            doc = json.loads(text)
+        except ValueError as exc:
+            raise ConfigError(f'bad JSON: {exc}') from exc
+        mode, extra = doc.get('mode'), dict(doc.get('overrides') or {})
+    else:
+        mode = text
+    out = {}
+    if mode is not None:
+        out.update(mode_preset(mode, available))
+    out.update(extra)
+    unknown = set(out) - set(RESTART_KEYS)
+    if unknown:
+        raise ConfigError(f'cannot set {sorted(unknown)} through a request')
+    return out

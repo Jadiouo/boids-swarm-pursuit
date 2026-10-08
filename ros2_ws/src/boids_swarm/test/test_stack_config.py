@@ -144,3 +144,33 @@ def test_expected_nodes_lists_controllers_and_target():
 def test_available_evaders_always_has_the_core_pair():
     av = sc.available_evaders()
     assert set(sc.CORE_EVADERS) <= set(av)
+
+
+# --- /ui/mode_request payloads ---------------------------------------------
+
+def test_request_bare_mode_name():
+    ov = sc.parse_mode_request('sensor_ros')
+    assert ov['perception'] == 'sensor' and ov['sharing_mode'] == 'ros'
+
+
+def test_request_json_with_overrides_and_no_mode():
+    assert sc.parse_mode_request('{"overrides": {"num_agents": 4}}') == \
+        {'num_agents': 4}
+    ov = sc.parse_mode_request('{"mode":"nav2","overrides":{"seed":3}}')
+    assert ov['evader'] == 'nav2' and ov['seed'] == 3
+
+
+@pytest.mark.parametrize('bad', ['', 'warp', '{"mode": "warp"}', '{oops',
+                                 '{"overrides": {"w_pursuit": 1}}'])
+def test_bad_requests_raise_config_error(bad):
+    with pytest.raises(sc.ConfigError):
+        sc.parse_mode_request(bad)
+
+
+def test_empty_values_are_not_passed_to_ros2_launch():
+    """`ros2 launch obstacles:=` is rejected as a malformed argument."""
+    a = sc.stack_args(sc.BASELINE)
+    assert a['obstacles'] == '' and a['relay_log_dir'] == ''
+    cmd = sc.stack_command(a)
+    assert not any(c.endswith(':=') for c in cmd)
+    assert 'perception:=perfect' in cmd

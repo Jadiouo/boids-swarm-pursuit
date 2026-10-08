@@ -9,9 +9,13 @@ timestep (1/fps) so seeded runs are comparable (§7.4 determinism);
 `headless:=true` skips rendering and runs unthrottled (fast-forward).
 """
 
+import atexit
 import math
 import os
+import queue
 import random
+import signal
+import time as _time
 
 import rclpy
 from rclpy.node import Node
@@ -19,7 +23,9 @@ from rcl_interfaces.msg import SetParametersResult
 from geometry_msgs.msg import Twist
 from rosgraph_msgs.msg import Clock
 from std_msgs.msg import Float32MultiArray, String
+from std_srvs.srv import Trigger
 from boids_swarm_msgs.msg import EpisodeState, TargetSighting
+from rclpy.parameter import Parameter as RclParameter
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 import json
 from turtlesim.msg import Pose
@@ -29,9 +35,13 @@ from .game import (Scoreboard, TagHealth, capture_escape_blocked,
                    capture_hull)
 from . import perception
 from . import comms
+from . import stack_config
+from . import stack_supervisor
 from . import ui
 from .behaviors.pursuit import STRATEGIES
+from .launch_util import obstacles_for_env
 from .param_bridge import ParamBridge
+from .ui_state import PanelState, status_view
 from .world_gen import WorldGenerator
 
 BG = (16, 20, 32)
@@ -53,6 +63,37 @@ class Entity:
         self.v = self.w = 0.0            # applied (published) velocities
         self.cmd = (0.0, 0.0)            # latest cmd_vel
         self.trail = []
+
+
+class Nav2Probe:
+    """True once Nav2's lifecycle manager answers `is_active` with success:
+    the planner/controller servers are up, so the chase can start."""
+
+    SERVICE = '/lifecycle_manager_target/is_active'
+
+    def __init__(self, node):
+        self.node = node
+        self.client = node.create_client(Trigger, self.SERVICE)
+        self.fut, self.t, self.done = None, 0.0, False
+
+    def ready(self):
+        if self.done:
+            return True
+        now = _time.monotonic()
+        if self.fut is None:
+            if self.client.service_is_ready():
+                self.fut, self.t = self.client.call_async(
+                    Trigger.Request()), now
+            return False
+        if self.fut.done():
+            try:
+                self.done = bool(self.fut.result().success)
+            except Exception:
+                self.done = False
+            self.fut = None
+        elif now - self.t > 2.0:
+            self.fut = None                      # lost reply: ask again
+        return self.done
 
 
 class PygameSimNode(Node):
@@ -128,7 +169,7 @@ class PygameSimNode(Node):
         self.declare_parameter('sighting_valid_for_sec', 0.6)
         # --- in-window control panel (v5 M15) ---
         self.declare_parameter('ui_enabled', True)
-        self.declare_parameter('panel_px', 280)
+        self.declare_parameter('panel_px', 360)
         # Display-only name of the environment. env_type is forced to
         # 'custom' when the launch pre-generates the layout, so it cannot
         # be used to tell the user which env they actually asked for.
@@ -145,6 +186,20 @@ class PygameSimNode(Node):
         self.declare_parameter('commit_distance', 2.5)
         self.declare_parameter('ring_radius_start', 3.0)
         self.declare_parameter('evader', 'reactive')
+        self.declare_parameter('w_separation', 1.5)
+        self.declare_parameter('w_alignment', 0.5)
+        self.declare_parameter('w_cohesion', 0.5)
+        self.declare_parameter('safe_distance', 1.2)
+        self.declare_parameter('sensing_radius', 4.0)
+        self.declare_parameter('lead_time', 1.0)
+        self.declare_parameter('sighting_timeout', 0.6)
+        # Mode switching (stack work). pursuit.launch.py sets stack_managed
+        # when the panel is on: the sim then starts the controllers /
+        # target / Nav2 itself (StackSupervisor) and can restart them with
+        # the window open. stack_launch_args = the launch arguments of that
+        # first stack, as JSON (see stack_config.STACK_LAUNCH_KEYS).
+        self.declare_parameter('stack_managed', False)
+        self.declare_parameter('stack_launch_args', '')
         self.add_on_set_parameters_callback(self._on_params)
 
         self.n = int(self.get_parameter('num_agents').value)
@@ -229,27 +284,15 @@ class PygameSimNode(Node):
             '/simulation/episode_state', epoch_qos)
         self.observation_pub = self.create_publisher(String,
             '/swarm/observations', 10)
-        self.sighting_pubs = [self.create_publisher(TargetSighting,
-            f'/agent{i}/local_target_sighting', 10) for i in range(self.n)]
+        self.sighting_pubs, self.det_pubs, self.pose_pubs = [], [], []
+        self._cmd_subs = []
         self.sighting_sequences = [1] * self.n
-        self.det_pubs = [
-            self.create_publisher(Float32MultiArray, f'/agent{i}/detections',
-                                  10)
-            for i in range(self.n)]
         self.percept_rng = random.Random(
             int(self.get_parameter('seed').value) + 104729)
         self.frame = 0
         self.pose_div = max(1, round(
             self.fps / float(self.get_parameter('pose_rate_hz').value)))
-        self.pose_pubs = [
-            self.create_publisher(Pose, f'/agent{i}/pose', 10)
-            for i in range(self.n)]
-        # depth=1: only the LATEST command matters — a deeper queue holds
-        # stale commands and turns into actuation delay (see main loop).
-        for i in range(self.n):
-            self.create_subscription(
-                Twist, f'/agent{i}/cmd_vel',
-                lambda m, k=i: self._on_cmd(m, self.agents[k]), 1)
+        self._ensure_agent_io(self.n)
         if self.target_enabled:
             self.target_pose_pub = self.create_publisher(
                 Pose, '/target/pose', 10)
@@ -263,6 +306,33 @@ class PygameSimNode(Node):
         if self.ui_on:
             self.bridge = ParamBridge(self, self.n, self.target_enabled)
             self.create_timer(0.05, self.bridge.pump)
+
+        # --- restartable stack (modes) ---
+        self.managed = bool(self.get_parameter('stack_managed').value) \
+            and self.ui_on
+        self.available_evaders = stack_config.available_evaders()
+        self.supervisor = stack_supervisor.StackSupervisor()
+        self._stack_base = {}
+        raw = self.get_parameter('stack_launch_args').value
+        if raw:
+            self._stack_base = json.loads(raw)
+        self.pstate = PanelState(self._initial_cfg(), self.available_evaders,
+                                 managed=self.managed)
+        self._requests = queue.Queue()        # mode requests from topics
+        self._last_sup_state = None
+        self._status_sent = (None, 0.0)
+        self._notice = ('', 0.0)
+        self.hold = self.managed            # frozen until the stack is up
+        status_qos = QoSProfile(depth=1,
+                                reliability=ReliabilityPolicy.RELIABLE,
+                                durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.status_pub = self.create_publisher(
+            String, '/ui/stack_status', status_qos)
+        # Automation / scripting hook: same effect as clicking a mode
+        # button (bare mode name, or JSON with overrides).
+        self.create_subscription(
+            String, '/ui/mode_request',
+            lambda m: self._requests.put(m.data), 10)
 
         self._spawn_all()
         self.score.start_episode()
@@ -306,6 +376,43 @@ class PygameSimNode(Node):
     def _p(self, name):
         return self.get_parameter(name).value
 
+    def _initial_cfg(self):
+        """The restart-needing settings the first stack was launched with
+        (launch arguments when managed, else this node's own parameters)."""
+        b = self._stack_base
+        qos = b.get('shared_sighting_qos_depth', '')
+        return {
+            'perception': b.get('perception', self.perception_mode),
+            'sharing_mode': b.get('sharing_mode', self._p('sharing_mode')),
+            'evader': b.get('evader', self._p('evader')),
+            'shared_sighting_qos_depth': int(qos) if qos != '' else 10,
+            'num_agents': self.n,
+            'env': b.get('env') or self._p('env_label') or self.env_type,
+            'seed': int(self._p('seed')),
+        }
+
+    def _ensure_agent_io(self, n):
+        """Publishers/subscriptions for agents 0..n-1. Created once and
+        kept when the swarm shrinks (rebuild_world), so a world rebuild
+        never has to destroy ROS entities under a spinning executor."""
+        for i in range(len(self.pose_pubs), n):
+            self.sighting_pubs.append(self.create_publisher(
+                TargetSighting, f'/agent{i}/local_target_sighting', 10))
+            self.det_pubs.append(self.create_publisher(
+                Float32MultiArray, f'/agent{i}/detections', 10))
+            self.pose_pubs.append(
+                self.create_publisher(Pose, f'/agent{i}/pose', 10))
+            # depth=1: only the LATEST command matters — a deeper queue
+            # holds stale commands and turns into actuation delay.
+            self._cmd_subs.append(self.create_subscription(
+                Twist, f'/agent{i}/cmd_vel',
+                lambda m, k=i: self._on_agent_cmd(m, k), 1))
+
+    def _on_agent_cmd(self, msg, k):
+        agents = self.agents
+        if k < len(agents):
+            self._on_cmd(msg, agents[k])
+
     def _on_cmd(self, msg: Twist, ent: Entity):
         if self.motion_model == 'holonomic':
             ent.cmd = (msg.linear.x, msg.linear.y)
@@ -345,6 +452,41 @@ class PygameSimNode(Node):
             t.trail.clear()
             self.stamina = 1.0
             self.tag_hp.reset()
+
+    def rebuild_world(self, n, env, seed):
+        """Swap swarm size / environment / seed under the open window.
+
+        Same rules as launch time: a procedural env is generated from
+        (seed, world_size) with WorldGenerator, 'custom' keeps the launch's
+        obstacle string; the controllers of the NEW stack receive the very
+        same layout because pursuit's `obstacles_for_env` is the shared
+        source. Called on the main thread, with the old stack stopped or
+        stopping (its poses are ignored: the lists below are replaced)."""
+        self.n = int(n)
+        self._ensure_agent_io(self.n)
+        self.agents = [Entity() for _ in range(self.n)]
+        self.sighting_sequences = [1] * self.n
+        self.rng = random.Random(int(seed))
+        self.percept_rng = random.Random(int(seed) + 104729)
+        if env != 'custom':
+            layout = WorldGenerator(int(seed), self.world).generate(env)
+            self.obstacles = list(layout.obstacles)
+            self.zones = list(layout.zones)
+            self.shrink_rate = layout.shrink_rate if layout.shrink_rate > 0 \
+                else 0.0
+        else:
+            flat = obstacles_for_env('custom', int(seed), self.world,
+                                     self._stack_base.get('obstacles', ''))
+            self.obstacles = self._parse_obstacles(flat)
+            self.zones = []
+            self.shrink_rate = 0.0
+        self.env_type = env
+        if self.bridge is not None:
+            self.bridge.set_n(self.n)
+        self.set_parameters([
+            RclParameter('num_agents', value=self.n),
+            RclParameter('seed', value=int(seed)),
+            RclParameter('env_label', value=env)])
 
     def _publish_episode_state(self):
         msg = EpisodeState()
@@ -701,64 +843,247 @@ class PygameSimNode(Node):
         pygame.init()
         px = int(self._p('window_px'))
         self.arena_px = px
-        panel_px = 0
-        win_h = px
-        if self.ui_on:
-            panel_px = int(self._p('panel_px'))
-            self.panel = ui.Panel(
-                ui.build_rows(strategies=tuple(STRATEGIES),
-                              capture_modes=('hull', 'escape_blocked', 'tag'),
-                              # nav2 is a stub that raises — keep it out of a
-                              # control the user can click by accident
-                              evaders=('reactive', 'adaptive')),
-                panel_px)
-            # Lay out first: a tall panel decides the window height, so a
-            # small window_px doesn't clip the bottom controls away.
-            win_h = max(px, self.panel.layout(px, 0))
-        self.screen = pygame.display.set_mode((px + panel_px, win_h))
-        pygame.display.set_caption('boids_swarm — cooperative pursuit')
         self.font = pygame.font.SysFont('monospace', 15)
         self.big_font = pygame.font.SysFont('monospace', 34, bold=True)
         self.fonts = {
             'body': pygame.font.SysFont('monospace', 15),
             'small': pygame.font.SysFont('monospace', 13),
+            'tiny': pygame.font.SysFont('monospace', 11),
             'bold': pygame.font.SysFont('monospace', 13, bold=True),
         }
+        panel_px = 0
+        win_h = px
+        if self.ui_on:
+            panel_px = int(self._p('panel_px'))
+            self.panel = ui.build_panel(
+                strategies=tuple(STRATEGIES),
+                capture_modes=('hull', 'escape_blocked', 'tag'),
+                # only brains the installed target_controller can build
+                # (it would crash at construction on an unknown one)
+                evaders=self.available_evaders,
+                envs=stack_config.ENVS, width=panel_px)
+            # Lay out first: a tall panel decides the window height, so a
+            # small window_px doesn't clip the bottom controls away.
+            win_h = max(px, self.panel.layout(px, 0))
+        self.screen = pygame.display.set_mode((px + panel_px, win_h))
+        pygame.display.set_caption('boids_swarm — cooperative pursuit')
         self.scale = px / self.world
 
     def _to_px(self, x, y):
         return int(x * self.scale), int((self.world - y) * self.scale)
 
     # ------------------------------------------------------------ panel
+    def _mode_label(self):
+        m = self.pstate.mode
+        return stack_config.MODE_LABELS.get(m, 'Custom')
+
+    def _mode_description(self):
+        text = stack_config.MODE_DESCRIPTIONS[self.pstate.mode]
+        ev = self.pstate.applied.get('evader')
+        if self.pstate.mode in (stack_config.BASELINE,
+                                stack_config.SENSOR_ROS):
+            text += f' Evader: {ev}.'
+        return text
+
+    def _status_view(self):
+        notice = self._notice[0] if self._notice[1] > _time.monotonic() else ''
+        return status_view(self.supervisor.status(), self.managed,
+                           notice or self.pstate.notice
+                           or (self.bridge.last_error if self.bridge
+                               else ''), self._mode_label())
+
     def _ui_value(self, scope, key):
         """Live value for a panel row. AGENTS/TARGET rows read the local
-        mirror (see the declare block); ACTION rows report toggle state."""
+        mirror (ParamBridge writes it back once the controllers confirm);
+        RESTART rows read the staged-or-applied config; ACTION rows report
+        toggle state and the header's dynamic text."""
         if scope == ui.ACTION:
-            return self.paused if key == 'toggle_pause' else False
-        if key == 'perception':
-            return self.perception_mode
-        if key == 'env':
-            return self._p('env_label') or self.env_type
-        if key == 'agents':
-            return self.n
+            if key == 'toggle_pause':
+                return self.paused
+            if key == 'mode_bar':
+                return {'current': self.pstate.mode,
+                        'enabled': self.managed}
+            if key == 'mode_desc':
+                return self._mode_description()
+            if key == 'status':
+                return self._status_view()
+            if key == 'apply':
+                return self.pstate.pending_count
+            if key == 'buttons':
+                return {'toggle_pause': self.paused}
+            return False
+        if scope == ui.RESTART:
+            return self.pstate.value(key)
         return self._p(key)
+
+    def _notify(self, text, seconds=6.0):
+        self._notice = (text, _time.monotonic() + seconds)
 
     def _ui_apply(self, change):
         if change is None:
             return
-        scope, key, value = change
-        if scope == ui.ACTION:
-            if key == 'toggle_pause':
-                self.paused = not self.paused
-            elif key == 'reset_episode':
-                # A manual do-over restarts the CURRENT episode rather than
-                # counting a new one, so the panel can't inflate the score.
-                self._spawn_all()
-                self.score.restart_episode()
-                self._publish_episode_state()
-                self.state = 'running'
+        kind, *rest = self.pstate.handle(change)
+        if kind == 'stage':
             return
+        if kind == 'notice':
+            self._notify(rest[0])
+            return
+        if kind == 'restart':
+            self.request_stack_change(rest[0])
+            return
+        if kind == 'action':
+            self._do_action(rest[0])
+            return
+        scope, key, value = rest
         self.bridge.request(scope, key, value)
+
+    def _do_action(self, key):
+        if key == 'toggle_pause':
+            self.paused = not self.paused
+        elif key == 'reset_episode':
+            # A manual do-over restarts the CURRENT episode rather than
+            # counting a new one, so the panel can't inflate the score.
+            self._spawn_all()
+            self.score.restart_episode()
+            self._publish_episode_state()
+            self.state = 'running'
+
+    # ------------------------------------------------------- stack / modes
+    def _live_values(self):
+        names = stack_config.AGENT_LIVE + stack_config.TARGET_LIVE
+        return {k: self._p(k) for k in names}
+
+    def _launch_args(self, cfg):
+        """swarm_stack.launch.py arguments for `cfg` (ConfigError if bad)."""
+        live = self._live_values()
+        overrides = dict(cfg, strategy=live['pursuit_strategy'])
+        return stack_config.stack_args(
+            None, overrides=overrides, base=self._stack_base,
+            available=self.available_evaders, live=live)
+
+    def _make_probe(self, cfg):
+        """Readiness of a freshly started stack: every controller service
+        discoverable, plus Nav2's lifecycle manager reporting active."""
+        ai = self._stack_base.get('game_mode', self.game_mode) == 'ai'
+        nav2 = Nav2Probe(self) if cfg['evader'] == 'nav2' else None
+
+        def probe():
+            if not self.bridge.all_ready(include_target=ai):
+                return False
+            return nav2.ready() if nav2 is not None else True
+        return probe
+
+    def _launch_stack(self, cfg, first=False):
+        args = self._launch_args(cfg)
+        nav2 = cfg['evader'] == 'nav2'
+        warm = float(args['warmup'])
+        kw = dict(probe=self._make_probe(cfg),
+                  settle_s=1.0 if nav2 else 0.8,
+                  eta_s=warm + (4.0 if nav2 else 2.5),
+                  label='nav2' if nav2 else self._mode_label())
+        cmd = stack_config.stack_command(args)
+        if first:
+            self.supervisor.start(cmd, **kw)
+        else:
+            self.supervisor.switch(cmd, **kw)
+
+    def start_initial_stack(self):
+        """Called once the window is up: start the first stack from the
+        launch arguments (the same ones the headless launch would use)."""
+        if not self.managed:
+            return
+        try:
+            self._launch_stack(self.pstate.applied, first=True)
+        except stack_config.ConfigError as exc:
+            self.supervisor.state = stack_supervisor.FAILED
+            self.supervisor.detail = str(exc)
+
+    def request_stack_change(self, overrides):
+        """Rebuild the stack (and the world, if its shape changed) with the
+        staged edits + `overrides`. Main thread only."""
+        if not self.managed:
+            self._notify('stack not managed by the sim: re-launch instead')
+            return False
+        cfg = self.pstate.target_cfg(overrides)
+        errs = stack_config.validate(cfg, self.available_evaders)
+        if errs:
+            self._notify(errs[0])
+            self.get_logger().warn(f'refused stack change: {errs}')
+            return False
+        old = self.pstate.applied
+        world_changed = any(cfg[k] != old[k]
+                            for k in ('num_agents', 'env', 'seed'))
+        if world_changed:
+            self.rebuild_world(cfg['num_agents'], cfg['env'], cfg['seed'])
+        self.set_parameters([
+            RclParameter('perception_mode', value=cfg['perception']),
+            RclParameter('sharing_mode', value=cfg['sharing_mode']),
+            RclParameter('evader', value=cfg['evader'])])
+        self.bridge.flush()               # replies from the old stack: stale
+        self.pstate.commit(cfg)
+        self.score = Scoreboard()
+        self.score.start_episode()
+        self._spawn_all()
+        self._publish_episode_state()
+        self.state = 'running'
+        self.hold = True
+        try:
+            self._launch_stack(cfg)
+        except stack_config.ConfigError as exc:
+            self._notify(str(exc))
+            return False
+        self.get_logger().info(
+            f'stack -> {self._mode_label()} {cfg}')
+        return True
+
+    def _process_requests(self):
+        while True:
+            try:
+                text = self._requests.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                ov = stack_config.parse_mode_request(
+                    text, self.available_evaders)
+            except stack_config.ConfigError as exc:
+                self._notify(f'bad mode request: {exc}')
+                self.get_logger().warn(f'bad /ui/mode_request: {exc}')
+                continue
+            if self.managed:
+                self.request_stack_change(ov)
+            else:
+                self._notify('stack not managed by the sim')
+
+    def tick_stack(self):
+        """Once per frame, main thread: requests, supervisor, hold, topic."""
+        self._process_requests()
+        if not self.managed:
+            return
+        self.supervisor.tick()
+        # live brain swaps (reactive/adaptive/smart) change the mirror only
+        self.pstate.applied['evader'] = self._p('evader')
+        st = self.supervisor.state
+        if st == stack_supervisor.RUNNING \
+                and self._last_sup_state != stack_supervisor.RUNNING:
+            # a fresh stack is up: start the episode from a clean slate
+            self._spawn_all()
+            self.score.restart_episode()
+            self._publish_episode_state()
+            self.state = 'running'
+        self.hold = st != stack_supervisor.RUNNING
+        self._last_sup_state = st
+        self._publish_status(st)
+
+    def _publish_status(self, st):
+        now = _time.monotonic()
+        last_st, last_t = self._status_sent
+        if st == last_st and now - last_t < 1.0:
+            return
+        self._status_sent = (st, now)
+        doc = dict(self.supervisor.status(), mode=self.pstate.mode,
+                   applied=self.pstate.applied, hold=self.hold,
+                   managed=self.managed)
+        self.status_pub.publish(String(data=json.dumps(doc)))
 
     def handle_pygame_events(self):
         import pygame
@@ -785,6 +1110,22 @@ class PygameSimNode(Node):
             r = size_px if ang == 0.0 else size_px * 0.75
             pts.append((cx + r * math.cos(a), cy - r * math.sin(a)))
         pygame.draw.polygon(self.screen, color, pts)
+
+    def _draw_hold_overlay(self, pygame):
+        """The world is frozen while the stack (re)starts; say why."""
+        v = self._status_view()
+        if getattr(self, '_veil', None) is None:     # built once: per-frame
+            self._veil = pygame.Surface(              # 800x800 alpha is slow
+                (self.arena_px, self.arena_px), pygame.SRCALPHA)
+            self._veil.fill((10, 14, 24, 150))
+        self.screen.blit(self._veil, (0, 0))
+        for i, (txt, font, col) in enumerate((
+                (v['text'], self.big_font, (255, 220, 90)),
+                ('world paused until the controllers are up', self.font,
+                 HUD))):
+            img = font.render(txt[:46], True, col)
+            self.screen.blit(img, (self.arena_px // 2 - img.get_width() // 2,
+                                   self.arena_px // 2 - 30 + i * 44))
 
     def render(self):
         shot_dir = self._p('screenshot_dir')
@@ -861,9 +1202,12 @@ class PygameSimNode(Node):
             txt = self.big_font.render('PAUSED', True, (255, 220, 90))
             self.screen.blit(txt, (self.arena_px // 2 - txt.get_width() // 2,
                                    self.arena_px // 2 - 60))
+        if self.managed and self.hold:
+            self._draw_hold_overlay(pygame)
         if self.panel is not None:
             self.panel.draw(pygame, self.screen, self.arena_px, 0,
-                            self.fonts, self._ui_value)
+                            self.fonts, self._ui_value,
+                            self.pstate.is_pending)
         if shot_due:
             os.makedirs(shot_dir, exist_ok=True)
             pygame.image.save(
@@ -876,11 +1220,18 @@ class PygameSimNode(Node):
 
 def main(args=None):
     import threading
-    import time as _time
     import pygame
     rclpy.init(args=args)
     node = PygameSimNode()
     node.setup_display()
+    # Never leave the stack's processes behind: atexit covers a normal or
+    # exception exit, the handler turns SIGTERM/SIGHUP into a clean loop
+    # exit (-> finally -> shutdown). (SIGKILL is covered on the stack's
+    # side: stack_supervisor.watch_parent.)
+    atexit.register(node.supervisor.shutdown)
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, lambda *_: setattr(node, 'running', False))
+    node.start_initial_stack()
     # Callbacks run in a background executor thread: rclpy.spin_once in
     # the render loop handles ONE callback per call, which backlogs N
     # cmd_vel streams into ~300ms actuation delay (queue_depth/cmd_rate)
@@ -901,10 +1252,14 @@ def main(args=None):
         while rclpy.ok() and node.running:
             clock.tick(pace)              # real time; headless: bounded FF
             node.handle_pygame_events()
+            node.tick_stack()
             if not node.paused:
                 node.sim_time += dt
-                node.step_physics(dt)
-                node.check_capture_and_score(dt)
+                # /clock keeps running while the world is held (Nav2 needs
+                # it to activate), physics and the score do not.
+                if not node.hold:
+                    node.step_physics(dt)
+                    node.check_capture_and_score(dt)
             # Keep publishing while paused: /clock stops advancing, so the
             # controllers' sim-time timers freeze with the world instead of
             # spinning on a stale pose and tripping their pose_timeout.
@@ -921,6 +1276,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        node.supervisor.shutdown()
         executor.shutdown(timeout_sec=1.0)
         pygame.quit()
         node.destroy_node()
