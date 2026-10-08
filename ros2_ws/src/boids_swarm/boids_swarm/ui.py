@@ -966,6 +966,10 @@ def _tabs(strategies, capture_modes, evaders, envs):
                0.01, '%.2f', '/s'),
         Slider('target_stamina_regen', 'stamina regen', SIM, 0.05, 1.0,
                0.01, '%.2f', '/s'),
+        # (moved here from Scene so Scene fits an 800 px window with the
+        # round-start rows)
+        Cycler('game_mode', 'target driver', SIM, ('ai', 'human')),
+        Toggle('render_trails', 'draw trails', SIM),
     ]
     scene = [
         Section('SCENE'),
@@ -980,8 +984,11 @@ def _tabs(strategies, capture_modes, evaders, envs):
                'm'),
         Slider('capture_k', 'boids needed (hull)', SIM, 1, 6, 1,
                unit='boids', integer=True),
-        Cycler('game_mode', 'target driver', SIM, ('ai', 'human')),
-        Toggle('render_trails', 'draw trails', SIM),
+        Toggle('spawn_safe', 'safe target spawn (next round)', SIM),
+        Slider('spawn_min_clearance', 'spawn clearance', SIM, 2.0, 10.0,
+               0.5, '%.1f', 'm'),
+        Slider('capture_grace', 'capture grace', SIM, 0.0, 5.0, 0.1,
+               '%.1f', 's'),
     ]
     return {'Sensor': sensor, 'Comms': comms, 'Swarm': swarm,
             'Target': target, 'Scene': scene}

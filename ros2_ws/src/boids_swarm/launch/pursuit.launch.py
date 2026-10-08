@@ -16,6 +16,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 from boids_swarm import stack_config
+from boids_swarm.launch_util import ensure_sigint_deliverable
 from boids_swarm.stack_config import STACK_LAUNCH_KEYS
 from boids_swarm.stack_launch import (
     params_file_path, resolve_world, stack_actions)
@@ -31,7 +32,8 @@ def launch_setup(context):
                      'screenshot_dir', 'screenshot_period', 'sharing_mode',
                      'shared_sighting_qos_depth', 'oracle_max_hops',
                      'relay_log_dir', 'time_scale', 'nav2_config', 'warmup',
-                     'pursuer_delay')}
+                     'pursuer_delay', 'spawn_safe', 'spawn_min_clearance',
+                     'capture_grace')}
     ui_default_evader = cfg['evader'] == ''
     if ui_default_evader:
         cfg['evader'] = 'reactive'          # headless / ui:=false default
@@ -67,6 +69,17 @@ def launch_setup(context):
     if cfg['relay_log_dir'] != '':
         sim_extra['relay_log_dir'] = cfg['relay_log_dir']
 
+    # Optional round-start fairness overrides (empty = sim default: on in
+    # the window, off otherwise; see stack_config.UI_SIM_DEFAULTS).
+    explicit_round = {}
+    if cfg['spawn_safe'] != '':
+        explicit_round['spawn_safe'] = cfg['spawn_safe'].lower() == 'true'
+    if cfg['spawn_min_clearance'] != '':
+        explicit_round['spawn_min_clearance'] = float(
+            cfg['spawn_min_clearance'])
+    if cfg['capture_grace'] != '':
+        explicit_round['capture_grace'] = float(cfg['capture_grace'])
+
     headless = cfg['headless'].lower() == 'true'
     ui_on = cfg['ui'].lower() == 'true'
     # Control-panel path: the window-owning sim is the only process launched
@@ -87,8 +100,10 @@ def launch_setup(context):
             stack_config.available_evaders())
     if managed:
         sim_extra['stack_managed'] = True
+        sim_extra.update(stack_config.UI_SIM_DEFAULTS)
         sim_extra['stack_launch_args'] = json.dumps(
             {k: cfg[k] for k in STACK_LAUNCH_KEYS}, sort_keys=True)
+    sim_extra.update(explicit_round)
 
     actions = [
         Node(package='boids_swarm', executable='pygame_sim',
@@ -126,6 +141,9 @@ def launch_setup(context):
 
 
 def generate_launch_description():
+    # `kill -INT` on a launch started as a background job (SIGINT inherited
+    # as ignored) otherwise never shuts anything down; see launch_util.
+    ensure_sigint_deliverable()
     args = [
         DeclareLaunchArgument('num_agents', default_value='8'),
         DeclareLaunchArgument(
@@ -194,6 +212,17 @@ def generate_launch_description():
             'warmup', default_value='0.0',
             description='seconds to hold back target+boid controllers '
                         '(let Nav2 activate before the chase starts)'),
+        DeclareLaunchArgument(
+            'spawn_safe', default_value='',
+            description='true|false: target starts >= spawn_min_clearance '
+                        'from every boid (empty = on in the window, off '
+                        'headless / ui:=false)'),
+        DeclareLaunchArgument('spawn_min_clearance', default_value='',
+                              description='metres, default 6'),
+        DeclareLaunchArgument(
+            'capture_grace', default_value='',
+            description='seconds without capture after a round starts '
+                        '(empty = 1.5 in the window, 0 otherwise)'),
         DeclareLaunchArgument('screenshot_dir', default_value='',
                               description='save periodic PNG frames here'),
         DeclareLaunchArgument('screenshot_period', default_value='5.0'),

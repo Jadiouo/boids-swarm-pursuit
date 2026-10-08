@@ -104,6 +104,10 @@ class Probe(Node):
 
 @pytest.fixture
 def world():
+    yield from _world()
+
+
+def _world(preexec_fn=None):
     if 'ROS_DOMAIN_ID' not in os.environ:
         pytest.skip('set ROS_DOMAIN_ID to a free domain first')
     env = dict(os.environ, SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='dummy')
@@ -120,7 +124,7 @@ def world():
         ['ros2', 'launch', 'boids_swarm', 'pursuit.launch.py',
          f'num_agents:={N}', 'ui:=true', 'headless:=false', 'seed:=3'],
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
-        start_new_session=True)
+        start_new_session=True, preexec_fn=preexec_fn)
     stacks = set()
     ctx = {'probe': probe, 'launch': launch, 'stacks': stacks}
     try:
@@ -222,6 +226,65 @@ def test_closing_the_launch_leaves_no_orphans(world):
     launch.wait(timeout=60)
     wait_until(lambda: not group_alive(pg), 30, 'stack group gone')
     assert children_of(launch.pid) == []
+
+
+def descendants(pid):
+    out = subprocess.run(['ps', '-e', '-o', 'pid=,ppid='],
+                         capture_output=True, text=True).stdout.split()
+    parent = dict(zip(map(int, out[::2]), map(int, out[1::2])))
+    found, grew = {pid}, True
+    while grew:
+        grew = False
+        for p, pp in parent.items():
+            if pp in found and p not in found:
+                found.add(p)
+                grew = True
+    return found - {pid}
+
+
+def live(pids):
+    def alive(p):
+        try:
+            with open(f'/proc/{p}/stat') as f:
+                return f.read().rsplit(')', 1)[1].split()[0] != 'Z'
+        except OSError:
+            return False
+    return [p for p in pids if alive(p)]
+
+
+SIGINT_DEADLINE = 6.0     # seconds from `kill -INT launch` to nothing left
+
+
+def _sigint_and_time(world):
+    st = running(world, 1)
+    launch = world['launch']
+    tree = descendants(launch.pid)
+    assert len(tree) >= 1 + N                      # sim + controllers
+    t0 = time.monotonic()
+    launch.send_signal(signal.SIGINT)
+    wait_until(lambda: launch.poll() is not None and not live(tree),
+               30, 'launch and everything under it gone')
+    took = time.monotonic() - t0
+    assert not group_alive(st['pid'])
+    return took
+
+
+def test_sigint_to_the_launch_ends_everything_quickly(world):
+    assert _sigint_and_time(world) < SIGINT_DEADLINE
+
+
+@pytest.fixture
+def world_sigint_ignored():
+    """Same world, but the launch starts with SIGINT ignored, as a
+    background job of a non-interactive shell (or nohup) does. Before the
+    launch_util fix, `kill -INT` then did nothing at all."""
+    yield from _world(
+        lambda: signal.signal(signal.SIGINT, signal.SIG_IGN))
+
+
+def test_sigint_works_even_when_it_was_inherited_as_ignored(
+        world_sigint_ignored):
+    assert _sigint_and_time(world_sigint_ignored) < SIGINT_DEADLINE
 
 
 def test_sim_killed_with_sigkill_still_takes_the_stack_down(world):

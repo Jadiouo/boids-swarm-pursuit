@@ -140,8 +140,17 @@ else is live: a parameter call goes straight to the node(s).
 | **Sensor** | `fov` [rad], `sensor_range` [m], `occlusion_enabled`, `range_sigma` [m/m], `bearing_sigma` [rad], `p_miss` | `perception` |
 | **Comms** | `radio_range` [m] (sim + boids), `comm_range` [m], `oracle_max_hops`, `comm_jitter` [m], `sighting_timeout` [s], legacy mesh toggle | `sharing_mode` (legacy/off/oracle/ros), `shared_sighting_qos_depth` |
 | **Swarm** | `pursuit_strategy`, `w_separation`, `w_alignment`, `w_cohesion`, `safe_distance` [m], `sensing_radius` [m], `w_pursuit`, `lead_time` [s], `ring_radius_start` [m], `commit_distance` [m] (sent to all N boids) | |
-| **Target** | `evader` (reactive/adaptive/smart swap live; anything involving nav2 restarts), `target_speed_multiplier` [x] and `target_omega_max` [rad/s] (set on the sim **and** `target_controller`), stamina on/drain/regen | |
-| **Scene** | `episode_time_limit` [s], `capture_mode`, `d_capture` [m], `capture_k`, target driver (ai/human), trails | `num_agents`, `env`, `seed` |
+| **Target** | `evader` (reactive/adaptive/smart swap live; anything involving nav2 restarts), `target_speed_multiplier` [x] and `target_omega_max` [rad/s] (set on the sim **and** `target_controller`), stamina on/drain/regen, target driver (ai/human), trails | |
+| **Scene** | `episode_time_limit` [s], `capture_mode`, `d_capture` [m], `capture_k`, `spawn_safe` (from the next round), `spawn_min_clearance` [m], `capture_grace` [s] | `num_agents`, `env`, `seed` |
+
+Round start in the window: `spawn_safe` (default on in the panel path, off
+headless / `ui:=false`) draws the target at least `spawn_min_clearance` (6 m)
+from every boid (`spawn.py`); the legacy spawn falls back to the arena centre
+for ~half the seeds with 12 boids, which is what produced "captured in 1 s".
+`capture_grace` (1.5 s in the window, 0 elsewhere) suppresses capture right
+after a round starts (HUD shows `GRACE`). Both can be forced on a headless
+launch with `spawn_safe:=true capture_grace:=1.5`. Agents are drawn at
+0.25 m x px/m (min 5 px x `ui_scale`); `agent_radius_px` > 0 overrides.
 
 `num_agents` / `env` / `seed` are applied by rebuilding the world inside the
 running sim (new entity lists, layout regenerated with the same
