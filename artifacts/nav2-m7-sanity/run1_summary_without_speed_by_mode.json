@@ -1,0 +1,325 @@
+{
+  "kind": "sanity (not pre-registered)",
+  "git_head": "4f918aa",
+  "config": {
+    "num_agents": 12,
+    "strategy": "intercept",
+    "env": "obstacle_field",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "active_window_s": 30.0,
+    "warmup_s": 8.0,
+    "pursuer_delay_s": 4.0,
+    "time_scale": 1.0,
+    "stamina": true,
+    "capture_mode": "hull"
+  },
+  "aggregate": {
+    "reactive": {
+      "runs": 6,
+      "captures": 4,
+      "capture_rate": 0.67,
+      "mean_capture_time_s": 10.15,
+      "runs_with_unknown_window": 0,
+      "mean_target_speed_mps": 2.72
+    },
+    "nav2": {
+      "runs": 6,
+      "captures": 6,
+      "capture_rate": 1.0,
+      "mean_capture_time_s": 11.39,
+      "runs_with_unknown_window": 1,
+      "mean_target_speed_mps": 1.88,
+      "mode_time_ratio_mean": {
+        "nav2": 0.218,
+        "blend": 0.36,
+        "reactive": 0.421
+      },
+      "nav2_plan_requests_total": 61,
+      "nav2_plan_fail_total": 3,
+      "nav2_plan_fail_rate": 0.049,
+      "nav2_follow_started_total": 58,
+      "nav2_follow_abort_total": 1
+    }
+  },
+  "runs": [
+    {
+      "evader": "reactive",
+      "seed": 1,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.533333333,
+      "t_target_cmd": 8.633333333,
+      "capture_time_s": 12.34,
+      "active_s": 12.35,
+      "target_mean_speed_mps": 2.64,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 2,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.533333333,
+      "t_target_cmd": 8.299999999,
+      "capture_time_s": 14.84,
+      "active_s": 14.85,
+      "target_mean_speed_mps": 2.64,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 3,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.6,
+      "t_target_cmd": 10.033333333,
+      "capture_time_s": 7.58,
+      "active_s": 7.6,
+      "target_mean_speed_mps": 2.69,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 4,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.566666666,
+      "t_target_cmd": 8.6,
+      "capture_time_s": 5.86,
+      "active_s": 5.88,
+      "target_mean_speed_mps": 2.64,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 5,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.566666666,
+      "t_target_cmd": 8.299999999,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.83,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 6,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.633333333,
+      "t_target_cmd": 8.633333333,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.87,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 1,
+      "result": "captured",
+      "window_unknown": true,
+      "t_boid_moved": null,
+      "t_target_cmd": 9.216666666,
+      "capture_time_s": null,
+      "active_s": null,
+      "target_mean_speed_mps": null,
+      "attempt": 3
+    },
+    {
+      "evader": "nav2",
+      "seed": 2,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.6,
+      "t_target_cmd": 8.299999999,
+      "capture_time_s": 6.5,
+      "active_s": 6.52,
+      "target_mean_speed_mps": 1.18,
+      "mode_time_ratio": {
+        "nav2": 0.323,
+        "blend": 0.179,
+        "reactive": 0.497
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.508,
+        "blend": 0.1,
+        "reactive": 0.393
+      },
+      "nav2_plan_requests": 9,
+      "nav2_plan_fail": 0,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.0,
+      "nav2_follow_started": 9,
+      "nav2_follow_abort": 0,
+      "nav2_follow_abort_rate": 0.0,
+      "nav2_goals": 9,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 3,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.433333333,
+      "t_target_cmd": 10.0,
+      "capture_time_s": 5.3,
+      "active_s": 5.32,
+      "target_mean_speed_mps": 1.49,
+      "mode_time_ratio": {
+        "nav2": 0.43,
+        "blend": 0.386,
+        "reactive": 0.184
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.502,
+        "blend": 0.295,
+        "reactive": 0.203
+      },
+      "nav2_plan_requests": 8,
+      "nav2_plan_fail": 0,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.0,
+      "nav2_follow_started": 8,
+      "nav2_follow_abort": 0,
+      "nav2_follow_abort_rate": 0.0,
+      "nav2_goals": 7,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 4,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.6,
+      "t_target_cmd": 9.966666666,
+      "capture_time_s": 11.7,
+      "active_s": 11.72,
+      "target_mean_speed_mps": 1.83,
+      "mode_time_ratio": {
+        "nav2": 0.14,
+        "blend": 0.451,
+        "reactive": 0.409
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.247,
+        "blend": 0.363,
+        "reactive": 0.39
+      },
+      "nav2_plan_requests": 13,
+      "nav2_plan_fail": 1,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.077,
+      "nav2_follow_started": 12,
+      "nav2_follow_abort": 0,
+      "nav2_follow_abort_rate": 0.0,
+      "nav2_goals": 12,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 5,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.066666666,
+      "t_target_cmd": 10.066666666,
+      "capture_time_s": 18.08,
+      "active_s": 18.1,
+      "target_mean_speed_mps": 2.55,
+      "mode_time_ratio": {
+        "nav2": 0.042,
+        "blend": 0.548,
+        "reactive": 0.41
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.034,
+        "blend": 0.555,
+        "reactive": 0.412
+      },
+      "nav2_plan_requests": 17,
+      "nav2_plan_fail": 0,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.0,
+      "nav2_follow_started": 17,
+      "nav2_follow_abort": 0,
+      "nav2_follow_abort_rate": 0.0,
+      "nav2_goals": 14,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 6,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.366666666,
+      "t_target_cmd": 8.366666666,
+      "capture_time_s": 15.36,
+      "active_s": 15.38,
+      "target_mean_speed_mps": 2.37,
+      "mode_time_ratio": {
+        "nav2": 0.157,
+        "blend": 0.238,
+        "reactive": 0.605
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.258,
+        "blend": 0.188,
+        "reactive": 0.554
+      },
+      "nav2_plan_requests": 14,
+      "nav2_plan_fail": 2,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.143,
+      "nav2_follow_started": 12,
+      "nav2_follow_abort": 1,
+      "nav2_follow_abort_rate": 0.083,
+      "nav2_goals": 12,
+      "attempt": 1
+    }
+  ],
+  "discarded_startup_failures": [
+    {
+      "evader": "nav2",
+      "seed": 1,
+      "result": "captured",
+      "window_unknown": true,
+      "t_boid_moved": null,
+      "t_target_cmd": 8.033333333,
+      "capture_time_s": null,
+      "active_s": null,
+      "target_mean_speed_mps": null,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 1,
+      "result": "captured",
+      "window_unknown": true,
+      "t_boid_moved": null,
+      "t_target_cmd": 9.133333333,
+      "capture_time_s": null,
+      "active_s": null,
+      "target_mean_speed_mps": null,
+      "attempt": 2
+    },
+    {
+      "evader": "nav2",
+      "seed": 1,
+      "result": "captured",
+      "window_unknown": true,
+      "t_boid_moved": null,
+      "t_target_cmd": 9.216666666,
+      "capture_time_s": null,
+      "active_s": null,
+      "target_mean_speed_mps": null,
+      "attempt": 3
+    }
+  ]
+}

@@ -1,0 +1,936 @@
+{
+  "by_group": {
+    "off-n4": {
+      "captured": 0,
+      "mean_cpu_cores": 1.5,
+      "mean_wall_sec": 9.57,
+      "outcomes": {
+        "timeout": 5
+      },
+      "runs": 5,
+      "wilson95": [
+        0,
+        0.434
+      ]
+    },
+    "oracle-n12": {
+      "captured": 2,
+      "mean_cpu_cores": 2.81,
+      "mean_wall_sec": 8.46,
+      "outcomes": {
+        "captured": 2,
+        "timeout": 1
+      },
+      "runs": 3,
+      "wilson95": [
+        0.208,
+        0.939
+      ]
+    },
+    "oracle-n4": {
+      "captured": 0,
+      "mean_cpu_cores": 1.42,
+      "mean_wall_sec": 10.11,
+      "outcomes": {
+        "timeout": 5
+      },
+      "runs": 5,
+      "wilson95": [
+        0,
+        0.434
+      ]
+    },
+    "ros-n12": {
+      "captured": 1,
+      "mean_cpu_cores": 2.63,
+      "mean_wall_sec": 14.37,
+      "outcomes": {
+        "captured": 1,
+        "timeout": 2
+      },
+      "runs": 3,
+      "wilson95": [
+        0.061,
+        0.792
+      ]
+    },
+    "ros-n4": {
+      "captured": 0,
+      "mean_cpu_cores": 1.6,
+      "mean_wall_sec": 10.4,
+      "outcomes": {
+        "timeout": 5
+      },
+      "runs": 5,
+      "wilson95": [
+        0,
+        0.434
+      ]
+    }
+  },
+  "runs": [
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.26,
+      "cpu_sec": 13.38,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "23.56",
+        "20.98",
+        "13.77"
+      ],
+      "loadavg_before": [
+        "23.49",
+        "20.87",
+        "13.66"
+      ],
+      "local_sightings": 1076,
+      "mode": "off",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "off-n4-seed11",
+      "seed": 11,
+      "status_channel_missing": "538/3600",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3060,
+      "track_valid_fraction": 0.3696,
+      "wall_sec": 10.59
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.26,
+      "cpu_sec": 12.89,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "24.63",
+        "21.49",
+        "14.21"
+      ],
+      "loadavg_before": [
+        "23.89",
+        "21.25",
+        "14.06"
+      ],
+      "local_sightings": 2611,
+      "mode": "off",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "off-n4-seed23",
+      "seed": 23,
+      "status_channel_missing": "728/3510",
+      "traceback_in_log": false,
+      "track_valid_denominator": 2781,
+      "track_valid_fraction": 0.9054,
+      "wall_sec": 10.25
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.64,
+      "cpu_sec": 14.51,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "23.47",
+        "21.56",
+        "14.47"
+      ],
+      "loadavg_before": [
+        "24.81",
+        "21.75",
+        "14.45"
+      ],
+      "local_sightings": 1962,
+      "mode": "off",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "off-n4-seed37",
+      "seed": 37,
+      "status_channel_missing": "0/3604",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3600,
+      "track_valid_fraction": 0.6069,
+      "wall_sec": 8.84
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.64,
+      "cpu_sec": 14.79,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "21.25",
+        "21.17",
+        "14.53"
+      ],
+      "loadavg_before": [
+        "21.70",
+        "21.26",
+        "14.52"
+      ],
+      "local_sightings": 1104,
+      "mode": "off",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "off-n4-seed41",
+      "seed": 41,
+      "status_channel_missing": "295/3586",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3288,
+      "track_valid_fraction": 0.4428,
+      "wall_sec": 9.0
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.69,
+      "cpu_sec": 15.56,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "20.33",
+        "20.92",
+        "14.66"
+      ],
+      "loadavg_before": [
+        "20.20",
+        "20.92",
+        "14.59"
+      ],
+      "local_sightings": 2233,
+      "mode": "off",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "off-n4-seed53",
+      "seed": 53,
+      "status_channel_missing": "291/3593",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3299,
+      "track_valid_fraction": 0.6647,
+      "wall_sec": 9.18
+    },
+    {
+      "capture_time_sec": 8.62,
+      "cpu_cores_avg": 3.11,
+      "cpu_sec": 17.41,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "21.34",
+        "21.12",
+        "14.76"
+      ],
+      "loadavg_before": [
+        "20.33",
+        "20.92",
+        "14.66"
+      ],
+      "local_sightings": 408,
+      "mode": "oracle",
+      "num_agents": 12,
+      "outcome": "captured",
+      "run": "oracle-n12-seed11",
+      "seed": 11,
+      "status_channel_missing": "1208/3111",
+      "traceback_in_log": false,
+      "track_valid_denominator": 1898,
+      "track_valid_fraction": 0.7945,
+      "wall_sec": 5.6
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 2.49,
+      "cpu_sec": 36.3,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "24.35",
+        "21.83",
+        "15.16"
+      ],
+      "loadavg_before": [
+        "21.76",
+        "21.22",
+        "14.85"
+      ],
+      "local_sightings": 4716,
+      "mode": "oracle",
+      "num_agents": 12,
+      "outcome": "timeout",
+      "run": "oracle-n12-seed23",
+      "seed": 23,
+      "status_channel_missing": "949/10706",
+      "traceback_in_log": false,
+      "track_valid_denominator": 9753,
+      "track_valid_fraction": 1.0,
+      "wall_sec": 14.6
+    },
+    {
+      "capture_time_sec": 6.05,
+      "cpu_cores_avg": 2.82,
+      "cpu_sec": 14.59,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "28.20",
+        "22.89",
+        "15.65"
+      ],
+      "loadavg_before": [
+        "27.61",
+        "22.68",
+        "15.54"
+      ],
+      "local_sightings": 200,
+      "mode": "oracle",
+      "num_agents": 12,
+      "outcome": "captured",
+      "run": "oracle-n12-seed37",
+      "seed": 37,
+      "status_channel_missing": "574/1995",
+      "traceback_in_log": false,
+      "track_valid_denominator": 1413,
+      "track_valid_fraction": 1.0,
+      "wall_sec": 5.17
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.27,
+      "cpu_sec": 13.62,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "23.48",
+        "20.78",
+        "13.55"
+      ],
+      "loadavg_before": [
+        "23.04",
+        "20.60",
+        "13.42"
+      ],
+      "local_sightings": 2006,
+      "mode": "oracle",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "oracle-n4-seed11",
+      "seed": 11,
+      "status_channel_missing": "201/3572",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3368,
+      "track_valid_fraction": 0.8916,
+      "wall_sec": 10.7
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.24,
+      "cpu_sec": 13.76,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "23.49",
+        "21.04",
+        "13.87"
+      ],
+      "loadavg_before": [
+        "23.56",
+        "20.98",
+        "13.77"
+      ],
+      "local_sightings": 2728,
+      "mode": "oracle",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "oracle-n4-seed23",
+      "seed": 23,
+      "status_channel_missing": "0/3565",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3561,
+      "track_valid_fraction": 0.957,
+      "wall_sec": 11.14
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.27,
+      "cpu_sec": 13.05,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "24.98",
+        "21.68",
+        "14.35"
+      ],
+      "loadavg_before": [
+        "24.63",
+        "21.49",
+        "14.21"
+      ],
+      "local_sightings": 2075,
+      "mode": "oracle",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "oracle-n4-seed37",
+      "seed": 37,
+      "status_channel_missing": "262/3601",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3336,
+      "track_valid_fraction": 0.9796,
+      "wall_sec": 10.31
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.67,
+      "cpu_sec": 15.0,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "21.86",
+        "21.28",
+        "14.45"
+      ],
+      "loadavg_before": [
+        "23.47",
+        "21.56",
+        "14.47"
+      ],
+      "local_sightings": 1629,
+      "mode": "oracle",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "oracle-n4-seed41",
+      "seed": 41,
+      "status_channel_missing": "345/3587",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3239,
+      "track_valid_fraction": 0.92,
+      "wall_sec": 8.98
+    },
+    {
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.65,
+      "cpu_sec": 15.61,
+      "domain": 190,
+      "exit_code": 0,
+      "loadavg_after": [
+        "20.19",
+        "20.95",
+        "14.53"
+      ],
+      "loadavg_before": [
+        "21.25",
+        "21.17",
+        "14.53"
+      ],
+      "local_sightings": 2572,
+      "mode": "oracle",
+      "num_agents": 4,
+      "outcome": "timeout",
+      "run": "oracle-n4-seed53",
+      "seed": 53,
+      "status_channel_missing": "514/3556",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3040,
+      "track_valid_fraction": 0.9997,
+      "wall_sec": 9.44
+    },
+    {
+      "accepted_events": 1476,
+      "capture_time_sec": 8.47,
+      "cpu_cores_avg": 2.8,
+      "cpu_sec": 18.37,
+      "delivery_all_receivers": 0.3299,
+      "depth1_collector_key_coverage": 0.4782,
+      "domain": 190,
+      "duplicate_receiver_events": 0,
+      "event_multiplicity": {
+        "1": 123,
+        "2": 155,
+        "3": 71,
+        "4": 56,
+        "5": 44,
+        "6": 33,
+        "7": 36,
+        "8": 40,
+        "9": 25,
+        "10": 24,
+        "11": 29,
+        "12": 36
+      },
+      "exit_code": 0,
+      "expected_receipts_low_denominator": 9324,
+      "loadavg_after": [
+        "21.76",
+        "21.22",
+        "14.85"
+      ],
+      "loadavg_before": [
+        "21.34",
+        "21.12",
+        "14.76"
+      ],
+      "loss_all_receivers": 0.6701,
+      "loss_all_receivers_upper_published": 0.693,
+      "loss_nonself_receivers": 0.6809,
+      "loss_self_receiver": 0.5508,
+      "mode": "ros",
+      "nonself_events_within_radio_range": 2039,
+      "num_agents": 12,
+      "outcome": "captured",
+      "published_keys_low": 777,
+      "published_keys_up": 835,
+      "reasons": {
+        "accepted": 1476,
+        "future_stamp": 10,
+        "late_observation": 553,
+        "out_of_range": 688,
+        "self_originated": 349
+      },
+      "relay_events_nonself": 2727,
+      "relay_events_self": 349,
+      "relay_events_total": 3076,
+      "run": "ros-n12-seed11",
+      "seed": 11,
+      "shared_keys_depth1": 307,
+      "shared_keys_depth300": 642,
+      "shared_keys_with_any_event": 672,
+      "sim_sightings_local": 835,
+      "status_channel_missing": "1351/2909",
+      "traceback_in_log": false,
+      "track_valid_denominator": 1556,
+      "track_valid_fraction": 0.8008,
+      "wall_sec": 6.55
+    },
+    {
+      "accepted_events": 10173,
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 2.66,
+      "cpu_sec": 44.3,
+      "delivery_all_receivers": 0.2865,
+      "depth1_collector_key_coverage": 0.5058,
+      "domain": 190,
+      "duplicate_receiver_events": 0,
+      "event_multiplicity": {
+        "1": 819,
+        "2": 721,
+        "3": 541,
+        "4": 469,
+        "5": 455,
+        "6": 243,
+        "7": 179,
+        "8": 178,
+        "9": 116,
+        "10": 131,
+        "11": 96,
+        "12": 208
+      },
+      "exit_code": 0,
+      "expected_receipts_low_denominator": 63084,
+      "loadavg_after": [
+        "27.61",
+        "22.68",
+        "15.54"
+      ],
+      "loadavg_before": [
+        "24.35",
+        "21.83",
+        "15.16"
+      ],
+      "loss_all_receivers": 0.7135,
+      "loss_all_receivers_upper_published": 0.7234,
+      "loss_nonself_receivers": 0.7264,
+      "loss_self_receiver": 0.5709,
+      "mode": "ros",
+      "nonself_events_within_radio_range": 14810,
+      "num_agents": 12,
+      "outcome": "timeout",
+      "published_keys_low": 5257,
+      "published_keys_up": 5445,
+      "reasons": {
+        "accepted": 10173,
+        "awaiting_episode": 4,
+        "future_stamp": 33,
+        "late_observation": 4529,
+        "out_of_range": 969,
+        "receiver_pose_time_mismatch": 111,
+        "receiver_pose_unavailable": 1,
+        "self_originated": 2256
+      },
+      "relay_events_nonself": 15820,
+      "relay_events_self": 2256,
+      "relay_events_total": 18076,
+      "run": "ros-n12-seed23",
+      "seed": 23,
+      "shared_keys_depth1": 2521,
+      "shared_keys_depth300": 4984,
+      "shared_keys_with_any_event": 4156,
+      "sim_sightings_local": 5445,
+      "status_channel_missing": "1010/10234",
+      "traceback_in_log": false,
+      "track_valid_denominator": 9219,
+      "track_valid_fraction": 0.9765,
+      "wall_sec": 16.65
+    },
+    {
+      "accepted_events": 10784,
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 2.42,
+      "cpu_sec": 48.15,
+      "delivery_all_receivers": 0.2741,
+      "depth1_collector_key_coverage": 0.4715,
+      "domain": 190,
+      "duplicate_receiver_events": 0,
+      "event_multiplicity": {
+        "1": 926,
+        "2": 716,
+        "3": 526,
+        "4": 453,
+        "5": 409,
+        "6": 221,
+        "7": 187,
+        "8": 152,
+        "9": 110,
+        "10": 131,
+        "11": 99,
+        "12": 256
+      },
+      "exit_code": 0,
+      "expected_receipts_low_denominator": 66060,
+      "loadavg_after": [
+        "31.85",
+        "24.11",
+        "16.21"
+      ],
+      "loadavg_before": [
+        "28.20",
+        "22.89",
+        "15.65"
+      ],
+      "loss_all_receivers": 0.7259,
+      "loss_all_receivers_upper_published": 0.733,
+      "loss_nonself_receivers": 0.7373,
+      "loss_self_receiver": 0.6013,
+      "mode": "ros",
+      "nonself_events_within_radio_range": 14510,
+      "num_agents": 12,
+      "outcome": "timeout",
+      "published_keys_low": 5505,
+      "published_keys_up": 5651,
+      "reasons": {
+        "accepted": 10784,
+        "future_stamp": 17,
+        "late_observation": 3709,
+        "out_of_range": 1400,
+        "self_originated": 2195
+      },
+      "relay_events_nonself": 15910,
+      "relay_events_self": 2195,
+      "relay_events_total": 18105,
+      "run": "ros-n12-seed37",
+      "seed": 37,
+      "shared_keys_depth1": 2459,
+      "shared_keys_depth300": 5215,
+      "shared_keys_with_any_event": 4186,
+      "sim_sightings_local": 5648,
+      "status_channel_missing": "934/10699",
+      "traceback_in_log": false,
+      "track_valid_denominator": 9760,
+      "track_valid_fraction": 0.9679,
+      "wall_sec": 19.9
+    },
+    {
+      "accepted_events": 1926,
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.38,
+      "cpu_sec": 15.1,
+      "delivery_all_receivers": 0.638,
+      "depth1_collector_key_coverage": 0.7056,
+      "domain": 190,
+      "duplicate_receiver_events": 0,
+      "event_multiplicity": {
+        "1": 458,
+        "2": 475,
+        "3": 520,
+        "4": 712
+      },
+      "exit_code": 0,
+      "expected_receipts_low_denominator": 9116,
+      "loadavg_after": [
+        "23.49",
+        "20.87",
+        "13.66"
+      ],
+      "loadavg_before": [
+        "23.48",
+        "20.78",
+        "13.55"
+      ],
+      "loss_all_receivers": 0.362,
+      "loss_all_receivers_upper_published": 0.367,
+      "loss_nonself_receivers": 0.4373,
+      "loss_self_receiver": 0.136,
+      "mode": "ros",
+      "nonself_events_within_radio_range": 3349,
+      "num_agents": 4,
+      "outcome": "timeout",
+      "published_keys_low": 2279,
+      "published_keys_up": 2297,
+      "reasons": {
+        "accepted": 1926,
+        "future_stamp": 3,
+        "late_observation": 1420,
+        "out_of_range": 498,
+        "self_originated": 1969
+      },
+      "relay_events_nonself": 3847,
+      "relay_events_self": 1969,
+      "relay_events_total": 5816,
+      "run": "ros-n4-seed11",
+      "seed": 11,
+      "shared_keys_depth1": 1582,
+      "shared_keys_depth300": 2242,
+      "shared_keys_with_any_event": 2165,
+      "sim_sightings_local": 2052,
+      "status_channel_missing": "222/3459",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3234,
+      "track_valid_fraction": 0.8556,
+      "wall_sec": 10.92
+    },
+    {
+      "accepted_events": 2398,
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.28,
+      "cpu_sec": 15.32,
+      "delivery_all_receivers": 0.5711,
+      "depth1_collector_key_coverage": 0.6378,
+      "domain": 190,
+      "duplicate_receiver_events": 0,
+      "event_multiplicity": {
+        "1": 718,
+        "2": 801,
+        "3": 435,
+        "4": 739
+      },
+      "exit_code": 0,
+      "expected_receipts_low_denominator": 11524,
+      "loadavg_after": [
+        "23.89",
+        "21.25",
+        "14.06"
+      ],
+      "loadavg_before": [
+        "23.49",
+        "21.04",
+        "13.87"
+      ],
+      "loss_all_receivers": 0.4289,
+      "loss_all_receivers_upper_published": 0.4362,
+      "loss_nonself_receivers": 0.5129,
+      "loss_self_receiver": 0.177,
+      "mode": "ros",
+      "nonself_events_within_radio_range": 4091,
+      "num_agents": 4,
+      "outcome": "timeout",
+      "published_keys_low": 2881,
+      "published_keys_up": 2918,
+      "reasons": {
+        "accepted": 2398,
+        "future_stamp": 5,
+        "late_observation": 1688,
+        "out_of_range": 119,
+        "self_originated": 2371
+      },
+      "relay_events_nonself": 4210,
+      "relay_events_self": 2371,
+      "relay_events_total": 6581,
+      "run": "ros-n4-seed23",
+      "seed": 23,
+      "shared_keys_depth1": 1777,
+      "shared_keys_depth300": 2786,
+      "shared_keys_with_any_event": 2693,
+      "sim_sightings_local": 2918,
+      "status_channel_missing": "346/3571",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3223,
+      "track_valid_fraction": 0.9953,
+      "wall_sec": 12.01
+    },
+    {
+      "accepted_events": 3084,
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.71,
+      "cpu_sec": 16.84,
+      "delivery_all_receivers": 0.5849,
+      "depth1_collector_key_coverage": 0.7,
+      "domain": 190,
+      "duplicate_receiver_events": 0,
+      "event_multiplicity": {
+        "1": 576,
+        "2": 575,
+        "3": 587,
+        "4": 707
+      },
+      "exit_code": 0,
+      "expected_receipts_low_denominator": 10796,
+      "loadavg_after": [
+        "24.81",
+        "21.75",
+        "14.45"
+      ],
+      "loadavg_before": [
+        "24.98",
+        "21.68",
+        "14.35"
+      ],
+      "loss_all_receivers": 0.4151,
+      "loss_all_receivers_upper_published": 0.4153,
+      "loss_nonself_receivers": 0.4738,
+      "loss_self_receiver": 0.239,
+      "mode": "ros",
+      "nonself_events_within_radio_range": 3762,
+      "num_agents": 4,
+      "outcome": "timeout",
+      "published_keys_low": 2699,
+      "published_keys_up": 2700,
+      "reasons": {
+        "accepted": 3084,
+        "awaiting_episode": 1,
+        "late_observation": 678,
+        "out_of_range": 497,
+        "receiver_pose_unavailable": 1,
+        "self_originated": 2054
+      },
+      "relay_events_nonself": 4261,
+      "relay_events_self": 2054,
+      "relay_events_total": 6315,
+      "run": "ros-n4-seed37",
+      "seed": 37,
+      "shared_keys_depth1": 1808,
+      "shared_keys_depth300": 2583,
+      "shared_keys_with_any_event": 2445,
+      "sim_sightings_local": 2252,
+      "status_channel_missing": "225/3558",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3330,
+      "track_valid_fraction": 0.9216,
+      "wall_sec": 9.83
+    },
+    {
+      "accepted_events": 2609,
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.77,
+      "cpu_sec": 17.23,
+      "delivery_all_receivers": 0.5336,
+      "depth1_collector_key_coverage": 0.6834,
+      "domain": 190,
+      "duplicate_receiver_events": 0,
+      "event_multiplicity": {
+        "1": 600,
+        "2": 594,
+        "3": 251,
+        "4": 600
+      },
+      "exit_code": 0,
+      "expected_receipts_low_denominator": 9260,
+      "loadavg_after": [
+        "21.70",
+        "21.26",
+        "14.52"
+      ],
+      "loadavg_before": [
+        "21.86",
+        "21.28",
+        "14.45"
+      ],
+      "loss_all_receivers": 0.4664,
+      "loss_all_receivers_upper_published": 0.4671,
+      "loss_nonself_receivers": 0.5358,
+      "loss_self_receiver": 0.2583,
+      "mode": "ros",
+      "nonself_events_within_radio_range": 3224,
+      "num_agents": 4,
+      "outcome": "timeout",
+      "published_keys_low": 2315,
+      "published_keys_up": 2318,
+      "reasons": {
+        "accepted": 2609,
+        "future_stamp": 1,
+        "late_observation": 614,
+        "self_originated": 1717
+      },
+      "relay_events_nonself": 3224,
+      "relay_events_self": 1717,
+      "relay_events_total": 4941,
+      "run": "ros-n4-seed41",
+      "seed": 41,
+      "shared_keys_depth1": 1494,
+      "shared_keys_depth300": 2186,
+      "shared_keys_with_any_event": 2045,
+      "sim_sightings_local": 1836,
+      "status_channel_missing": "625/3534",
+      "traceback_in_log": false,
+      "track_valid_denominator": 2907,
+      "track_valid_fraction": 0.9501,
+      "wall_sec": 9.73
+    },
+    {
+      "accepted_events": 3341,
+      "capture_time_sec": 30.02,
+      "cpu_cores_avg": 1.84,
+      "cpu_sec": 17.54,
+      "delivery_all_receivers": 0.6116,
+      "depth1_collector_key_coverage": 0.6739,
+      "domain": 190,
+      "duplicate_receiver_events": 0,
+      "event_multiplicity": {
+        "1": 514,
+        "2": 474,
+        "3": 368,
+        "4": 915
+      },
+      "exit_code": 0,
+      "expected_receipts_low_denominator": 10180,
+      "loadavg_after": [
+        "20.20",
+        "20.92",
+        "14.59"
+      ],
+      "loadavg_before": [
+        "20.19",
+        "20.95",
+        "14.53"
+      ],
+      "loss_all_receivers": 0.3884,
+      "loss_all_receivers_upper_published": 0.3903,
+      "loss_nonself_receivers": 0.4491,
+      "loss_self_receiver": 0.2063,
+      "mode": "ros",
+      "nonself_events_within_radio_range": 3985,
+      "num_agents": 4,
+      "outcome": "timeout",
+      "published_keys_low": 2545,
+      "published_keys_up": 2553,
+      "reasons": {
+        "accepted": 3341,
+        "awaiting_episode": 25,
+        "late_observation": 641,
+        "out_of_range": 199,
+        "self_originated": 2020
+      },
+      "relay_events_nonself": 4206,
+      "relay_events_self": 2020,
+      "relay_events_total": 6226,
+      "run": "ros-n4-seed53",
+      "seed": 53,
+      "shared_keys_depth1": 1715,
+      "shared_keys_depth300": 2545,
+      "shared_keys_with_any_event": 2271,
+      "sim_sightings_local": 2553,
+      "status_channel_missing": "0/3558",
+      "traceback_in_log": false,
+      "track_valid_denominator": 3554,
+      "track_valid_fraction": 0.9516,
+      "wall_sec": 9.51
+    }
+  ]
+}

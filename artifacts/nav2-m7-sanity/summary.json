@@ -1,0 +1,342 @@
+{
+  "kind": "sanity (not pre-registered)",
+  "git_head": "4f918aa",
+  "config": {
+    "num_agents": 12,
+    "strategy": "intercept",
+    "env": "obstacle_field",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "active_window_s": 30.0,
+    "warmup_s": 8.0,
+    "pursuer_delay_s": 4.0,
+    "time_scale": 1.0,
+    "stamina": true,
+    "capture_mode": "hull"
+  },
+  "aggregate": {
+    "reactive": {
+      "runs": 6,
+      "captures": 2,
+      "capture_rate": 0.33,
+      "mean_capture_time_s": 11.16,
+      "runs_with_unknown_window": 0,
+      "mean_target_speed_mps": 2.81
+    },
+    "nav2": {
+      "runs": 6,
+      "captures": 4,
+      "capture_rate": 0.67,
+      "mean_capture_time_s": 12.42,
+      "runs_with_unknown_window": 0,
+      "mean_target_speed_mps": 2.26,
+      "mode_time_ratio_mean": {
+        "nav2": 0.086,
+        "blend": 0.373,
+        "reactive": 0.541
+      },
+      "nav2_plan_requests_total": 100,
+      "nav2_plan_fail_total": 20,
+      "nav2_plan_fail_rate": 0.2,
+      "nav2_follow_started_total": 80,
+      "nav2_follow_abort_total": 5
+    }
+  },
+  "runs": [
+    {
+      "evader": "reactive",
+      "seed": 1,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.733333333000001,
+      "t_target_cmd": 8.7,
+      "capture_time_s": 11.95,
+      "active_s": 11.97,
+      "target_mean_speed_mps": 2.66,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 2,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.666666666,
+      "t_target_cmd": 8.366666666,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.95,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 3,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.633333333,
+      "t_target_cmd": 8.366666666,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.85,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 4,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.633333333,
+      "t_target_cmd": 8.666666666,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.87,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 5,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.6,
+      "t_target_cmd": 8.616666666,
+      "capture_time_s": 10.38,
+      "active_s": 10.4,
+      "target_mean_speed_mps": 2.7,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 6,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.566666666,
+      "t_target_cmd": 8.65,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.86,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 1,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.733333333000001,
+      "t_target_cmd": 8.199999999,
+      "capture_time_s": 10.8,
+      "active_s": 10.82,
+      "target_mean_speed_mps": 1.98,
+      "speed_by_mode_mps": {
+        "nav2": 0.0,
+        "blend": 1.33,
+        "reactive": 2.73
+      },
+      "slow_sample_share": 0.127,
+      "mode_time_ratio": {
+        "nav2": 0.081,
+        "blend": 0.385,
+        "reactive": 0.534
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.128,
+        "blend": 0.46,
+        "reactive": 0.412
+      },
+      "nav2_plan_requests": 10,
+      "nav2_plan_fail": 2,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.2,
+      "nav2_follow_started": 8,
+      "nav2_follow_abort": 1,
+      "nav2_follow_abort_rate": 0.125,
+      "nav2_goals": 9,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 2,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.666666666,
+      "t_target_cmd": 8.833333333,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.36,
+      "speed_by_mode_mps": {
+        "nav2": 0.92,
+        "blend": 2.26,
+        "reactive": 2.7
+      },
+      "slow_sample_share": 0.029,
+      "mode_time_ratio": {
+        "nav2": 0.053,
+        "blend": 0.551,
+        "reactive": 0.396
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.145,
+        "blend": 0.485,
+        "reactive": 0.37
+      },
+      "nav2_plan_requests": 26,
+      "nav2_plan_fail": 1,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.038,
+      "nav2_follow_started": 25,
+      "nav2_follow_abort": 1,
+      "nav2_follow_abort_rate": 0.04,
+      "nav2_goals": 25,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 3,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 13.066666666,
+      "t_target_cmd": 8.433333333,
+      "capture_time_s": 8.2,
+      "active_s": 8.22,
+      "target_mean_speed_mps": 1.92,
+      "speed_by_mode_mps": {
+        "nav2": 0.2,
+        "blend": 2.11,
+        "reactive": 2.48
+      },
+      "slow_sample_share": 0.134,
+      "mode_time_ratio": {
+        "nav2": 0.156,
+        "blend": 0.57,
+        "reactive": 0.275
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.4,
+        "blend": 0.379,
+        "reactive": 0.221
+      },
+      "nav2_plan_requests": 12,
+      "nav2_plan_fail": 0,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.0,
+      "nav2_follow_started": 12,
+      "nav2_follow_abort": 0,
+      "nav2_follow_abort_rate": 0.0,
+      "nav2_goals": 10,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 4,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.6,
+      "t_target_cmd": 9.3,
+      "capture_time_s": 12.25,
+      "active_s": 12.27,
+      "target_mean_speed_mps": 2.02,
+      "speed_by_mode_mps": {
+        "nav2": 0.15,
+        "blend": 1.45,
+        "reactive": 2.63
+      },
+      "slow_sample_share": 0.174,
+      "mode_time_ratio": {
+        "nav2": 0.142,
+        "blend": 0.226,
+        "reactive": 0.632
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.283,
+        "blend": 0.166,
+        "reactive": 0.551
+      },
+      "nav2_plan_requests": 17,
+      "nav2_plan_fail": 2,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.118,
+      "nav2_follow_started": 15,
+      "nav2_follow_abort": 1,
+      "nav2_follow_abort_rate": 0.067,
+      "nav2_goals": 16,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 5,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.6,
+      "t_target_cmd": 9.333333333,
+      "capture_time_s": 18.42,
+      "active_s": 18.43,
+      "target_mean_speed_mps": 2.4,
+      "speed_by_mode_mps": {
+        "nav2": null,
+        "blend": 1.96,
+        "reactive": 2.8
+      },
+      "slow_sample_share": 0.04,
+      "mode_time_ratio": {
+        "nav2": 0.0,
+        "blend": 0.483,
+        "reactive": 0.517
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.0,
+        "blend": 0.548,
+        "reactive": 0.452
+      },
+      "nav2_plan_requests": 13,
+      "nav2_plan_fail": 0,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.0,
+      "nav2_follow_started": 13,
+      "nav2_follow_abort": 1,
+      "nav2_follow_abort_rate": 0.077,
+      "nav2_goals": 9,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 6,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.633333333,
+      "t_target_cmd": 8.833333333,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.87,
+      "speed_by_mode_mps": {
+        "nav2": 1.28,
+        "blend": 0.77,
+        "reactive": 3.07
+      },
+      "slow_sample_share": 0.032,
+      "mode_time_ratio": {
+        "nav2": 0.086,
+        "blend": 0.021,
+        "reactive": 0.893
+      },
+      "mode_tick_ratio": {
+        "nav2": 0.131,
+        "blend": 0.019,
+        "reactive": 0.85
+      },
+      "nav2_plan_requests": 22,
+      "nav2_plan_fail": 15,
+      "nav2_plan_timeout": 0,
+      "nav2_plan_fail_rate": 0.682,
+      "nav2_follow_started": 7,
+      "nav2_follow_abort": 1,
+      "nav2_follow_abort_rate": 0.143,
+      "nav2_goals": 20,
+      "attempt": 1
+    }
+  ],
+  "discarded_startup_failures": []
+}

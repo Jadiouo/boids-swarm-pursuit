@@ -1,0 +1,22 @@
+{
+  "name": "E1b",
+  "note": "POST-HOC follow-up diagnostic, NOT pre-registered. Spec: artifacts/relay-e1b-followup-2026-10-08/README.md",
+  "common": {
+    "strategy": "intercept", "env": "open", "perception": "sensor",
+    "capture_mode": "hull", "game_mode": "ai", "episodes_max": 1,
+    "time_limit": 30.0, "comm_range": 8.0, "radio_range": 8.0
+  },
+  "capture_relay_events": true,
+  "scenes": {
+    "S12ff": {"num_agents": 12, "seeds": [101,102,103,104,105,106,107,108]},
+    "S12rt": {"num_agents": 12, "seeds": [101,102,103,104],
+              "launch_args": {"time_scale": 1}}
+  },
+  "modes": {
+    "ros-d1":  {"sharing_mode": "ros", "shared_sighting_qos_depth": 1},
+    "ros-d10": {"sharing_mode": "ros", "shared_sighting_qos_depth": 10}
+  },
+  "shuffle_seed": 20261009,
+  "domain": 201,
+  "wall_timeout_sec": 240
+}

@@ -1,0 +1,879 @@
+{
+ "harness": "tools/nav2_tune.py; rows m00..r05 used the v3 scenario set (5 scenarios), r06/r07/final the v4 set (adds wall_start; start pose inset by plan_start)",
+ "limits": {
+  "v_max": 3.6,
+  "omega_max": 1.2,
+  "stamina": "off"
+ },
+ "variants": [
+  {
+   "id": "m00_base",
+   "controller": "MPPI",
+   "change": "spike config (nav2_target_mppi.yaml as of ba93ce8, limits from params)",
+   "overrides": [],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.0,
+     "incl_startup_mps": 1.79,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 2.91,
+     "incl_startup_mps": 1.73,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 2.85,
+     "incl_startup_mps": 1.86,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 1.67,
+     "incl_startup_mps": 1.54,
+     "reached": true,
+     "collided": false,
+     "stalled": true
+    },
+    "diamond": {
+     "cruise_mps": 1.47,
+     "incl_startup_mps": 1.44,
+     "reached": true,
+     "collided": false,
+     "stalled": true
+    }
+   },
+   "cruise_mean_mps": 2.38,
+   "incl_startup_mean_mps": 1.6,
+   "all_reached": true,
+   "any_collision": false,
+   "any_stall": true
+  },
+  {
+   "id": "m04_lowcost",
+   "controller": "MPPI",
+   "change": "CostCritic 2.0, ConstraintCritic 2.0, inflation_radius 0.5 (both costmaps)",
+   "overrides": [
+    "FollowPath.CostCritic.cost_weight=2.0",
+    "FollowPath.ConstraintCritic.cost_weight=2.0",
+    "local_costmap.local_costmap.inflation_layer.inflation_radius=0.5",
+    "global_costmap.global_costmap.inflation_layer.inflation_radius=0.5"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.03,
+     "incl_startup_mps": 0.94,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 2.93,
+     "incl_startup_mps": 1.83,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 2.86,
+     "incl_startup_mps": 1.58,
+     "reached": true,
+     "collided": false,
+     "stalled": true
+    },
+    "obstacle_field": {
+     "cruise_mps": 1.77,
+     "incl_startup_mps": 1.63,
+     "reached": true,
+     "collided": false,
+     "stalled": true
+    },
+    "diamond": {
+     "cruise_mps": 1.35,
+     "incl_startup_mps": 1.23,
+     "reached": true,
+     "collided": false,
+     "stalled": true
+    }
+   },
+   "cruise_mean_mps": 2.32,
+   "incl_startup_mean_mps": 1.47,
+   "all_reached": false,
+   "any_collision": false,
+   "any_stall": true
+  },
+  {
+   "id": "m05_pf8",
+   "controller": "MPPI",
+   "change": "m04 + PathFollowCritic weight 8, offset_from_furthest 8",
+   "overrides": [
+    "FollowPath.CostCritic.cost_weight=2.0",
+    "FollowPath.ConstraintCritic.cost_weight=2.0",
+    "local_costmap.local_costmap.inflation_layer.inflation_radius=0.5",
+    "global_costmap.global_costmap.inflation_layer.inflation_radius=0.5",
+    "FollowPath.PathFollowCritic.cost_weight=8.0",
+    "FollowPath.PathFollowCritic.offset_from_furthest=8"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": null,
+     "incl_startup_mps": 0.01,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": null,
+     "incl_startup_mps": 0.01,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": null,
+     "incl_startup_mps": 0.01,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 1.31,
+     "incl_startup_mps": 0.46,
+     "reached": false,
+     "collided": true,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": null,
+     "incl_startup_mps": 0.01,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 1.31,
+   "incl_startup_mean_mps": 0.06,
+   "all_reached": false,
+   "any_collision": true,
+   "any_stall": false
+  },
+  {
+   "id": "m07_temp",
+   "controller": "MPPI",
+   "change": "m04 + temperature 0.2, batch_size 1500",
+   "overrides": [
+    "FollowPath.CostCritic.cost_weight=2.0",
+    "FollowPath.ConstraintCritic.cost_weight=2.0",
+    "local_costmap.local_costmap.inflation_layer.inflation_radius=0.5",
+    "global_costmap.global_costmap.inflation_layer.inflation_radius=0.5",
+    "FollowPath.temperature=0.2",
+    "FollowPath.batch_size=1500"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.02,
+     "incl_startup_mps": 0.97,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 2.89,
+     "incl_startup_mps": 1.89,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 2.51,
+     "incl_startup_mps": 0.81,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 1.69,
+     "incl_startup_mps": 1.55,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 1.49,
+     "incl_startup_mps": 1.36,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 2.21,
+   "incl_startup_mean_mps": 1.4,
+   "all_reached": false,
+   "any_collision": false,
+   "any_stall": false
+  },
+  {
+   "id": "m08_rpp",
+   "controller": "RPP",
+   "change": "RegulatedPurePursuit, desired 3.6, min_radius 3.0 (=v_max/omega_max)",
+   "overrides": [
+    "REPLACE_FOLLOWPATH=rpp_followpath_base.yaml"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.48,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.51,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.22,
+     "incl_startup_mps": 2.61,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 1.05,
+     "incl_startup_mps": 0.35,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 2.3,
+     "incl_startup_mps": 2.26,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 2.77,
+   "incl_startup_mean_mps": 2.3,
+   "all_reached": false,
+   "any_collision": false,
+   "any_stall": false
+  },
+  {
+   "id": "r01_rpp_gr03",
+   "controller": "RPP",
+   "change": "m08 + global_costmap robot_radius 0.3  [SHIPPED]",
+   "overrides": [
+    "REPLACE_FOLLOWPATH=rpp_followpath_base.yaml",
+    "global_costmap.global_costmap.robot_radius=0.3"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.54,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.55,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.61,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 2.27,
+     "incl_startup_mps": 2.22,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 3.38,
+     "incl_startup_mps": 3.38,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 3.05,
+   "incl_startup_mean_mps": 2.6,
+   "all_reached": true,
+   "any_collision": false,
+   "any_stall": false
+  },
+  {
+   "id": "r02_rpp_gr03_ttc",
+   "controller": "RPP",
+   "change": "r01 + time-to-collision 0.5, lookahead 0.6..2.5",
+   "overrides": [
+    "REPLACE_FOLLOWPATH=rpp_followpath_base.yaml",
+    "global_costmap.global_costmap.robot_radius=0.3",
+    "FollowPath.max_allowed_time_to_collision_up_to_carrot=0.5",
+    "FollowPath.min_lookahead_dist=0.6",
+    "FollowPath.max_lookahead_dist=2.5"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.19,
+     "incl_startup_mps": 2.54,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.55,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.22,
+     "incl_startup_mps": 2.6,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 2.25,
+     "incl_startup_mps": 2.21,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 3.36,
+     "incl_startup_mps": 3.33,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 3.05,
+   "incl_startup_mean_mps": 2.58,
+   "all_reached": true,
+   "any_collision": false,
+   "any_stall": false
+  },
+  {
+   "id": "r03_rpp_nodet",
+   "controller": "RPP",
+   "change": "r01 + use_collision_detection false (ablation)",
+   "overrides": [
+    "REPLACE_FOLLOWPATH=rpp_followpath_base.yaml",
+    "global_costmap.global_costmap.robot_radius=0.3",
+    "FollowPath.use_collision_detection=false"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.51,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.53,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.17,
+     "incl_startup_mps": 2.55,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 2.29,
+     "incl_startup_mps": 2.22,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 3.37,
+     "incl_startup_mps": 3.38,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 3.05,
+   "incl_startup_mean_mps": 2.58,
+   "all_reached": true,
+   "any_collision": false,
+   "any_stall": false
+  },
+  {
+   "id": "r04_rpp_minrad2",
+   "controller": "RPP",
+   "change": "r01 + regulated min radius 2.0, min speed 0.8",
+   "overrides": [
+    "REPLACE_FOLLOWPATH=rpp_followpath_base.yaml",
+    "global_costmap.global_costmap.robot_radius=0.3",
+    "FollowPath.regulated_linear_scaling_min_radius=2.0",
+    "FollowPath.regulated_linear_scaling_min_speed=0.8"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.23,
+     "incl_startup_mps": 2.58,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.25,
+     "incl_startup_mps": 2.61,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.25,
+     "incl_startup_mps": 2.66,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 1.53,
+     "incl_startup_mps": 1.37,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 3.12,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 2.89,
+   "incl_startup_mean_mps": 2.63,
+   "all_reached": false,
+   "any_collision": false,
+   "any_stall": false
+  },
+  {
+   "id": "r05_rpp_ginfl",
+   "controller": "RPP",
+   "change": "r01 + global inflation_radius 1.2, cost_scaling 2.0",
+   "overrides": [
+    "REPLACE_FOLLOWPATH=rpp_followpath_base.yaml",
+    "global_costmap.global_costmap.robot_radius=0.3",
+    "global_costmap.global_costmap.inflation_layer.inflation_radius=1.2",
+    "global_costmap.global_costmap.inflation_layer.cost_scaling_factor=2.0"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.22,
+     "incl_startup_mps": 2.54,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.53,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.62,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 2.29,
+     "incl_startup_mps": 2.24,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 3.49,
+     "incl_startup_mps": 3.46,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 3.09,
+   "incl_startup_mean_mps": 2.61,
+   "all_reached": true,
+   "any_collision": false,
+   "any_stall": false
+  },
+  {
+   "id": "r06_rpp_gr015_infl12",
+   "controller": "RPP",
+   "change": "global robot_radius back to 0.15 + inflation_radius 1.2, scaling 2.0",
+   "overrides": [
+    "REPLACE_FOLLOWPATH=rpp_followpath_base.yaml",
+    "global_costmap.global_costmap.robot_radius=0.15",
+    "global_costmap.global_costmap.inflation_layer.inflation_radius=1.2",
+    "global_costmap.global_costmap.inflation_layer.cost_scaling_factor=2.0"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.55,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.58,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.64,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 0.9,
+     "incl_startup_mps": 0.34,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 3.44,
+     "incl_startup_mps": 3.33,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_start": {
+     "cruise_mps": null,
+     "incl_startup_mps": 0.0,
+     "reached": false,
+     "collided": true,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 3.0,
+   "incl_startup_mean_mps": 2.69,
+   "all_reached": false,
+   "any_collision": true,
+   "any_stall": false
+  },
+  {
+   "id": "r07_rpp_gr015_infl15",
+   "controller": "RPP",
+   "change": "global robot_radius 0.15 + inflation_radius 1.5, scaling 3.0",
+   "overrides": [
+    "REPLACE_FOLLOWPATH=rpp_followpath_base.yaml",
+    "global_costmap.global_costmap.robot_radius=0.15",
+    "global_costmap.global_costmap.inflation_layer.inflation_radius=1.5",
+    "global_costmap.global_costmap.inflation_layer.cost_scaling_factor=3.0"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.55,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.57,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.24,
+     "incl_startup_mps": 2.78,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 0.96,
+     "incl_startup_mps": 0.34,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 2.53,
+     "incl_startup_mps": 2.5,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_start": {
+     "cruise_mps": null,
+     "incl_startup_mps": 0.0,
+     "reached": false,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 2.81,
+   "incl_startup_mean_mps": 2.4,
+   "all_reached": false,
+   "any_collision": false,
+   "any_stall": false
+  },
+  {
+   "id": "final_pre_gr022",
+   "controller": "RPP",
+   "change": "(superseded) shipped config with global radius 0.30",
+   "overrides": [],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.53,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.56,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.6,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 2.25,
+     "incl_startup_mps": 2.2,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 3.38,
+     "incl_startup_mps": 3.38,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_start": {
+     "cruise_mps": 1.86,
+     "incl_startup_mps": 1.61,
+     "reached": true,
+     "collided": true,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 2.85,
+   "incl_startup_mean_mps": 2.49,
+   "all_reached": true,
+   "any_collision": true,
+   "any_stall": false
+  },
+  {
+   "id": "r08_gr022",
+   "controller": "RPP",
+   "change": "shipped config but global robot_radius 0.22",
+   "overrides": [
+    "global_costmap.global_costmap.robot_radius=0.22"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.54,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.54,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.62,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 2.19,
+     "incl_startup_mps": 2.09,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 2.53,
+     "incl_startup_mps": 2.59,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_start": {
+     "cruise_mps": 1.88,
+     "incl_startup_mps": 1.61,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 2.7,
+   "incl_startup_mean_mps": 2.3,
+   "all_reached": true,
+   "any_collision": false,
+   "any_stall": false
+  },
+  {
+   "id": "r09_gr018",
+   "controller": "RPP",
+   "change": "shipped config but global robot_radius 0.18",
+   "overrides": [
+    "global_costmap.global_costmap.robot_radius=0.18"
+   ],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.54,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.53,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.22,
+     "incl_startup_mps": 2.6,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 2.2,
+     "incl_startup_mps": 2.1,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 2.4,
+     "incl_startup_mps": 2.44,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_start": {
+     "cruise_mps": 1.85,
+     "incl_startup_mps": 1.59,
+     "reached": true,
+     "collided": true,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 2.68,
+   "incl_startup_mean_mps": 2.27,
+   "all_reached": true,
+   "any_collision": true,
+   "any_stall": false
+  },
+  {
+   "id": "final_shipped",
+   "controller": "RPP",
+   "change": "shipped config/nav2_target.yaml: RPP, global robot_radius 0.22, collision detection off, boid clearing scan, ranges 10/20, plan_start margin 0.3",
+   "overrides": [],
+   "scenarios": {
+    "single_block": {
+     "cruise_mps": 3.2,
+     "incl_startup_mps": 2.54,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_with_gap": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.54,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "slalom": {
+     "cruise_mps": 3.21,
+     "incl_startup_mps": 2.61,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "obstacle_field": {
+     "cruise_mps": 2.2,
+     "incl_startup_mps": 2.1,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "diamond": {
+     "cruise_mps": 2.52,
+     "incl_startup_mps": 2.58,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    },
+    "wall_start": {
+     "cruise_mps": 1.86,
+     "incl_startup_mps": 1.6,
+     "reached": true,
+     "collided": false,
+     "stalled": false
+    }
+   },
+   "cruise_mean_mps": 2.7,
+   "incl_startup_mean_mps": 2.3,
+   "all_reached": true,
+   "any_collision": false,
+   "any_stall": false
+  }
+ ],
+ "note": "any_collision on wall_start is set by the scripted wall-hug start (body touches the wall by construction)"
+}

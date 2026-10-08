@@ -1,0 +1,23 @@
+{
+  "name": "E1",
+  "prereg": "SDD/Sdd_relay_phase2_prereg.md",
+  "common": {
+    "strategy": "intercept", "env": "open", "perception": "sensor",
+    "capture_mode": "hull", "game_mode": "ai", "episodes_max": 1,
+    "time_limit": 30.0, "comm_range": 8.0, "radio_range": 8.0
+  },
+  "scenes": {
+    "S12": {"num_agents": 12, "seeds": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]},
+    "S4":  {"num_agents": 4,  "seeds": [1,2,3,4,5,6,7,8,9,10]}
+  },
+  "modes": {
+    "off":       {"sharing_mode": "off"},
+    "oracle-mh": {"sharing_mode": "oracle", "oracle_max_hops": 0},
+    "oracle-1h": {"sharing_mode": "oracle", "oracle_max_hops": 1},
+    "ros-d1":    {"sharing_mode": "ros", "shared_sighting_qos_depth": 1},
+    "ros-d10":   {"sharing_mode": "ros", "shared_sighting_qos_depth": 10}
+  },
+  "shuffle_seed": 20261008,
+  "domain": 201,
+  "wall_timeout_sec": 240
+}

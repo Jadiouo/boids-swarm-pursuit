@@ -1,0 +1,220 @@
+{
+  "kind": "sanity (not pre-registered)",
+  "git_head": "ddcb702",
+  "config": {
+    "num_agents": 12,
+    "strategy": "intercept",
+    "env": "obstacle_field",
+    "seeds": [
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "active_window_s": 30.0,
+    "warmup_s": 8.0,
+    "pursuer_delay_s": 4.0,
+    "time_scale": 1.0,
+    "stamina": true,
+    "capture_mode": "hull"
+  },
+  "aggregate": {
+    "reactive": {
+      "runs": 5,
+      "captures": 4,
+      "capture_rate": 0.8,
+      "mean_capture_time_s": 10.43,
+      "runs_with_unknown_window": 0,
+      "mean_target_speed_mps": 2.65
+    },
+    "nav2": {
+      "runs": 5,
+      "captures": 3,
+      "capture_rate": 0.6,
+      "mean_capture_time_s": 11.73,
+      "runs_with_unknown_window": 0,
+      "mean_target_speed_mps": 2.17,
+      "mode_ratio_mean": {
+        "nav2": 0.219,
+        "blend": 0.333,
+        "reactive": 0.449
+      },
+      "nav2_failures_total": 48,
+      "nav2_plan_requests_total": 103
+    }
+  },
+  "runs": [
+    {
+      "evader": "reactive",
+      "seed": 2,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.633333333,
+      "t_target_cmd": 8.7,
+      "capture_time_s": 7.0,
+      "active_s": 7.02,
+      "target_mean_speed_mps": 2.6,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 3,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.966666666,
+      "t_target_cmd": 8.583333333,
+      "capture_time_s": 5.6,
+      "active_s": 5.62,
+      "target_mean_speed_mps": 2.02,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 4,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.566666666,
+      "t_target_cmd": 8.633333333,
+      "capture_time_s": 8.58,
+      "active_s": 8.6,
+      "target_mean_speed_mps": 2.99,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 5,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.566666666,
+      "t_target_cmd": 8.266666666,
+      "capture_time_s": 20.56,
+      "active_s": 20.58,
+      "target_mean_speed_mps": 2.7,
+      "attempt": 1
+    },
+    {
+      "evader": "reactive",
+      "seed": 6,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.766666666,
+      "t_target_cmd": 8.633333333,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.92,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 2,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.5,
+      "t_target_cmd": 9.933333333,
+      "capture_time_s": 9.02,
+      "active_s": 9.03,
+      "target_mean_speed_mps": 2.2,
+      "mode_ratio": {
+        "nav2": 0.127,
+        "blend": 0.496,
+        "reactive": 0.378
+      },
+      "nav2_plan_requests": 10,
+      "nav2_plan_fail": 3,
+      "nav2_follow_abort": 0,
+      "nav2_failures": 3,
+      "nav2_goals": 7,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 3,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.566666666,
+      "t_target_cmd": 8.333333333,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.74,
+      "mode_ratio": {
+        "nav2": 0.146,
+        "blend": 0.148,
+        "reactive": 0.707
+      },
+      "nav2_plan_requests": 37,
+      "nav2_plan_fail": 25,
+      "nav2_follow_abort": 1,
+      "nav2_failures": 26,
+      "nav2_goals": 11,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 4,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.666666666,
+      "t_target_cmd": 10.066666666,
+      "capture_time_s": 3.8,
+      "active_s": 3.82,
+      "target_mean_speed_mps": 0.81,
+      "mode_ratio": {
+        "nav2": 0.642,
+        "blend": 0.187,
+        "reactive": 0.171
+      },
+      "nav2_plan_requests": 6,
+      "nav2_plan_fail": 0,
+      "nav2_follow_abort": 0,
+      "nav2_failures": 0,
+      "nav2_goals": 5,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 5,
+      "result": "captured",
+      "window_unknown": false,
+      "t_boid_moved": 12.833333333,
+      "t_target_cmd": 10.033333333,
+      "capture_time_s": 22.37,
+      "active_s": 22.38,
+      "target_mean_speed_mps": 2.58,
+      "mode_ratio": {
+        "nav2": 0.017,
+        "blend": 0.61,
+        "reactive": 0.373
+      },
+      "nav2_plan_requests": 20,
+      "nav2_plan_fail": 2,
+      "nav2_follow_abort": 0,
+      "nav2_failures": 2,
+      "nav2_goals": 17,
+      "attempt": 1
+    },
+    {
+      "evader": "nav2",
+      "seed": 6,
+      "result": "timeout",
+      "window_unknown": false,
+      "t_boid_moved": 12.3,
+      "t_target_cmd": 8.466666666,
+      "capture_time_s": null,
+      "active_s": 30.0,
+      "target_mean_speed_mps": 2.53,
+      "mode_ratio": {
+        "nav2": 0.161,
+        "blend": 0.225,
+        "reactive": 0.614
+      },
+      "nav2_plan_requests": 30,
+      "nav2_plan_fail": 15,
+      "nav2_follow_abort": 2,
+      "nav2_failures": 17,
+      "nav2_goals": 15,
+      "attempt": 1
+    }
+  ],
+  "discarded_startup_failures": []
+}

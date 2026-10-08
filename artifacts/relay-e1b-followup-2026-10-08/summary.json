@@ -1,0 +1,450 @@
+{
+  "cells": {
+    "S12ff/ros-d1": {
+      "age_accepted_median_s": 0.0,
+      "age_accepted_p95_s": 0.0333,
+      "age_events_n": 36463,
+      "age_frac_gt_sighting_timeout": 0.0,
+      "age_max_s": 0.3333,
+      "age_median_s": 0.0,
+      "age_p95_per_run_range_s": [
+        0.0167,
+        0.1167
+      ],
+      "age_p95_s": 0.0333,
+      "age_p99_s": 0.1,
+      "captures": 4,
+      "drop_per_run": [
+        0.655,
+        0.6517,
+        0.4413,
+        0.565,
+        0.4345,
+        0.5575,
+        0.5333,
+        0.5809
+      ],
+      "drop_pooled": 0.5583,
+      "drop_pooled_bootstrap95": [
+        0.5338,
+        0.5747
+      ],
+      "event_rows_total": 43276,
+      "in_range_expected_total": 225284,
+      "in_range_received_total": 99514,
+      "loadavg_before_range": [
+        14.59,
+        67.98
+      ],
+      "reasons_all_nonself": {
+        "accepted": [
+          24771,
+          0.6426
+        ],
+        "late_observation": [
+          6001,
+          0.1557
+        ],
+        "n": 38548,
+        "other": [
+          2353,
+          0.061
+        ],
+        "other_breakdown": {
+          "awaiting_episode": 2085,
+          "future_stamp": 75,
+          "receiver_pose_time_mismatch": 177,
+          "receiver_pose_unavailable": 16
+        },
+        "out_of_range": [
+          5423,
+          0.1407
+        ],
+        "stale": [
+          0,
+          0.0
+        ]
+      },
+      "reasons_in_range_only": {
+        "accepted": [
+          24771,
+          0.798
+        ],
+        "late_observation": [
+          6001,
+          0.1933
+        ],
+        "n": 31040,
+        "other": [
+          268,
+          0.0086
+        ],
+        "other_breakdown": {
+          "future_stamp": 75,
+          "receiver_pose_time_mismatch": 177,
+          "receiver_pose_unavailable": 16
+        },
+        "out_of_range": [
+          0,
+          0.0
+        ],
+        "stale": [
+          0,
+          0.0
+        ]
+      },
+      "receivers_without_status": 10,
+      "runs": 8,
+      "seeds": [
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108
+      ],
+      "valid": 8,
+      "wall_sec_note": "includes about 3 s launch overhead; time_scale 4 would give ~10 s, time_scale 1 ~33 s",
+      "wall_sec_of_30s_uncaptured_runs": [
+        14.7,
+        19.0,
+        35.4,
+        40.0
+      ]
+    },
+    "S12ff/ros-d10": {
+      "age_accepted_median_s": 0.0,
+      "age_accepted_p95_s": 0.0333,
+      "age_events_n": 40501,
+      "age_frac_gt_sighting_timeout": 0.0005,
+      "age_max_s": 0.6333,
+      "age_median_s": 0.0,
+      "age_p95_per_run_range_s": [
+        0.0333,
+        0.1
+      ],
+      "age_p95_s": 0.0667,
+      "age_p99_s": 0.15,
+      "captures": 4,
+      "drop_per_run": [
+        0.0943,
+        -0.0075,
+        -0.0021,
+        0.1092,
+        0.1075,
+        0.05,
+        0.0344,
+        0.1865
+      ],
+      "drop_pooled": 0.0773,
+      "drop_pooled_bootstrap95": [
+        0.0434,
+        0.111
+      ],
+      "event_rows_total": 45036,
+      "in_range_expected_total": 225316,
+      "in_range_received_total": 207903,
+      "loadavg_before_range": [
+        22.42,
+        60.13
+      ],
+      "reasons_all_nonself": {
+        "accepted": [
+          23902,
+          0.5836
+        ],
+        "late_observation": [
+          10251,
+          0.2503
+        ],
+        "n": 40959,
+        "other": [
+          871,
+          0.0213
+        ],
+        "other_breakdown": {
+          "awaiting_episode": 458,
+          "future_stamp": 7,
+          "receiver_pose_time_mismatch": 342,
+          "receiver_pose_unavailable": 64
+        },
+        "out_of_range": [
+          5916,
+          0.1444
+        ],
+        "stale": [
+          19,
+          0.0005
+        ]
+      },
+      "reasons_in_range_only": {
+        "accepted": [
+          23902,
+          0.6911
+        ],
+        "late_observation": [
+          10251,
+          0.2964
+        ],
+        "n": 34585,
+        "other": [
+          413,
+          0.0119
+        ],
+        "other_breakdown": {
+          "future_stamp": 7,
+          "receiver_pose_time_mismatch": 342,
+          "receiver_pose_unavailable": 64
+        },
+        "out_of_range": [
+          0,
+          0.0
+        ],
+        "stale": [
+          19,
+          0.0005
+        ]
+      },
+      "receivers_without_status": 10,
+      "runs": 8,
+      "seeds": [
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108
+      ],
+      "valid": 8,
+      "wall_sec_note": "includes about 3 s launch overhead; time_scale 4 would give ~10 s, time_scale 1 ~33 s",
+      "wall_sec_of_30s_uncaptured_runs": [
+        15.8,
+        21.8,
+        35.3,
+        38.4
+      ]
+    },
+    "S12rt/ros-d1": {
+      "age_accepted_median_s": 0.0,
+      "age_accepted_p95_s": 0.0167,
+      "age_events_n": 21522,
+      "age_frac_gt_sighting_timeout": 0.0,
+      "age_max_s": 0.3833,
+      "age_median_s": 0.0,
+      "age_p95_per_run_range_s": [
+        0.0167,
+        0.0333
+      ],
+      "age_p95_s": 0.0167,
+      "age_p99_s": 0.05,
+      "captures": 2,
+      "drop_per_run": [
+        0.6032,
+        0.5341,
+        0.4721,
+        0.5107
+      ],
+      "drop_pooled": 0.5226,
+      "drop_pooled_bootstrap95": [
+        0.5049,
+        0.5393
+      ],
+      "event_rows_total": 24372,
+      "in_range_expected_total": 117397,
+      "in_range_received_total": 56040,
+      "loadavg_before_range": [
+        12.99,
+        60.61
+      ],
+      "reasons_all_nonself": {
+        "accepted": [
+          15942,
+          0.7354
+        ],
+        "late_observation": [
+          2837,
+          0.1309
+        ],
+        "n": 21679,
+        "other": [
+          226,
+          0.0104
+        ],
+        "other_breakdown": {
+          "awaiting_episode": 157,
+          "future_stamp": 4,
+          "receiver_pose_time_mismatch": 52,
+          "receiver_pose_unavailable": 13
+        },
+        "out_of_range": [
+          2674,
+          0.1233
+        ],
+        "stale": [
+          0,
+          0.0
+        ]
+      },
+      "reasons_in_range_only": {
+        "accepted": [
+          15942,
+          0.8458
+        ],
+        "late_observation": [
+          2837,
+          0.1505
+        ],
+        "n": 18848,
+        "other": [
+          69,
+          0.0037
+        ],
+        "other_breakdown": {
+          "future_stamp": 4,
+          "receiver_pose_time_mismatch": 52,
+          "receiver_pose_unavailable": 13
+        },
+        "out_of_range": [
+          0,
+          0.0
+        ],
+        "stale": [
+          0,
+          0.0
+        ]
+      },
+      "receivers_without_status": 5,
+      "runs": 4,
+      "seeds": [
+        101,
+        102,
+        103,
+        104
+      ],
+      "valid": 4,
+      "wall_sec_note": "includes about 3 s launch overhead; time_scale 4 would give ~10 s, time_scale 1 ~33 s",
+      "wall_sec_of_30s_uncaptured_runs": [
+        33.3,
+        48.0
+      ]
+    },
+    "S12rt/ros-d10": {
+      "age_accepted_median_s": 0.0,
+      "age_accepted_p95_s": 0.0167,
+      "age_events_n": 24168,
+      "age_frac_gt_sighting_timeout": 0.0,
+      "age_max_s": 0.05,
+      "age_median_s": 0.0,
+      "age_p95_per_run_range_s": [
+        0.0,
+        0.0333
+      ],
+      "age_p95_s": 0.0167,
+      "age_p99_s": 0.0333,
+      "captures": 2,
+      "drop_per_run": [
+        0.0725,
+        -0.0006,
+        0.0259,
+        -0.0004
+      ],
+      "drop_pooled": 0.003,
+      "drop_pooled_bootstrap95": [
+        -0.0005,
+        0.0538
+      ],
+      "event_rows_total": 26311,
+      "in_range_expected_total": 125070,
+      "in_range_received_total": 124698,
+      "loadavg_before_range": [
+        38.65,
+        66.11
+      ],
+      "reasons_all_nonself": {
+        "accepted": [
+          17317,
+          0.7165
+        ],
+        "late_observation": [
+          3763,
+          0.1557
+        ],
+        "n": 24168,
+        "other": [
+          9,
+          0.0004
+        ],
+        "other_breakdown": {
+          "receiver_pose_unavailable": 9
+        },
+        "out_of_range": [
+          3079,
+          0.1274
+        ],
+        "stale": [
+          0,
+          0.0
+        ]
+      },
+      "reasons_in_range_only": {
+        "accepted": [
+          17317,
+          0.8211
+        ],
+        "late_observation": [
+          3763,
+          0.1784
+        ],
+        "n": 21089,
+        "other": [
+          9,
+          0.0004
+        ],
+        "other_breakdown": {
+          "receiver_pose_unavailable": 9
+        },
+        "out_of_range": [
+          0,
+          0.0
+        ],
+        "stale": [
+          0,
+          0.0
+        ]
+      },
+      "receivers_without_status": 0,
+      "runs": 4,
+      "seeds": [
+        101,
+        102,
+        103,
+        104
+      ],
+      "valid": 4,
+      "wall_sec_note": "includes about 3 s launch overhead; time_scale 4 would give ~10 s, time_scale 1 ~33 s",
+      "wall_sec_of_30s_uncaptured_runs": [
+        32.3,
+        32.5
+      ]
+    }
+  },
+  "fingerprints": [
+    "3aee8391abe8b1dd6fcebe665cdcb98cce55d51432d14e8e8e51a77ba1f2a2ed",
+    "a87a09f34da6ab19554c11c69654634830f36a75071f57386e6094f39e7d5ef4",
+    "df8bb2335330b968f8e658f83a640621e3bf415db5142ac57aa2787c0a237d11",
+    "eaa0549fe2b1581b25c1a5e071896626d844d40514e5d14987e0301dc78b5047",
+    "ef7a1e066b8ba46b391ffc4e23fb3b0d12c2daca1b358a989319ebc3c96916b2"
+  ],
+  "git_commits": [
+    "849d45a1ce565fcdc51eb0e61c6d36aecd6fe6f7",
+    "c62102db553e35cbc46e57901d81507ef1bf41f2"
+  ],
+  "invalid_runs": [],
+  "name": "E1b",
+  "sighting_timeout_s": 0.6,
+  "status": "POST-HOC follow-up diagnostic, not pre-registered"
+}
