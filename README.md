@@ -104,4 +104,5 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q src/boids_swarm/ros_test
 | [artifacts/README.md](artifacts/README.md) | Index of every experiment folder and its status |
 | [ros2_ws/src/boids_swarm/](ros2_ws/src/boids_swarm/) | Main package: nodes, `behaviors/`, launch, `tools/` experiment runners, tests |
 | [scripts/quickstart.sh](scripts/quickstart.sh) | One-shot build and verification |
+| [docs/devlog/](docs/devlog/2026-10-08-relay-nav2-ui.md) | Devlog: what went wrong in the first relay evaluation and how it was corrected |
 | [log.md](log.md) | Chronological development log and pitfall list |
