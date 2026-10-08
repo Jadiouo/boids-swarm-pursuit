@@ -37,6 +37,47 @@ ACTION = 'action'
 PAD = 10
 ROW_GAP = 4
 
+# Every pixel size in this module is a 1.0x BASE value. A panel built with
+# ui_scale=u multiplies all of them (fonts, row heights, offsets, padding,
+# widths) through `_Row.k` / `Panel.u`, so nothing is tuned per scale.
+UI_SCALE_MIN, UI_SCALE_MAX = 1.0, 2.5
+
+FONT_BASE = {'body': 16, 'small': 14, 'tiny': 12, 'bold': 14,
+             'hud': 16, 'big': 30}
+FONT_CANDIDATES = ('dejavusans', 'notosans', 'liberationsans', 'freesans',
+                   'arial')
+
+
+def clamp_scale(u):
+    try:
+        u = float(u)
+    except (TypeError, ValueError):
+        u = 1.5
+    return _clamp(u, UI_SCALE_MIN, UI_SCALE_MAX)
+
+
+def make_fonts(pg, u):
+    """All fonts at ui_scale `u`. A proportional sans (DejaVu Sans / Noto
+    Sans / ... whichever the host has) reads far better than the old
+    'monospace' fallback; if none is installed pygame's bundled font is
+    used. Needs pygame.font.init()."""
+    name = next((n for n in FONT_CANDIDATES if pg.font.match_font(n)), None)
+
+    def mk(size, bold=False):
+        size = max(8, int(round(size * u)))
+        path = pg.font.match_font(name, bold=bold) if name else None
+        if path:
+            return pg.font.Font(path, size)
+        f = pg.font.Font(None, int(size * 1.25))
+        f.set_bold(bold)
+        return f
+
+    return {'body': mk(FONT_BASE['body']), 'small': mk(FONT_BASE['small']),
+            'tiny': mk(FONT_BASE['tiny']),
+            'bold': mk(FONT_BASE['bold'], True),
+            'hud': mk(FONT_BASE['hud']),
+            'big': mk(FONT_BASE['big'], True)}
+
 # --- palette (matches the arena's dark theme) -------------------------------
 BG = (22, 26, 40)
 EDGE = (52, 60, 78)
@@ -60,9 +101,10 @@ def _clamp(v, lo, hi):
 class _Row:
     """Base row. `place` assigns an absolute rect; `hit` tests it."""
 
-    height = 24
+    BASE_H = 24
     interactive = False
     needs_value = False
+    u = 1.0                       # ui_scale, set by the owning panel
 
     def __init__(self, label, key=None, scope=None):
         self.label = label
@@ -70,6 +112,14 @@ class _Row:
         self.scope = scope
         self.x = self.y = self.w = 0
         self.pending = False      # restart row with an un-applied edit
+
+    def k(self, v):
+        """A 1.0x pixel size at the current ui_scale."""
+        return max(1, int(round(v * self.u)))
+
+    @property
+    def height(self):
+        return self.k(self.BASE_H)
 
     @property
     def restart(self):
@@ -87,22 +137,23 @@ class _Row:
 class Section(_Row):
     """A group heading."""
 
-    height = 26
+    BASE_H = 28
 
     def __init__(self, label):
         super().__init__(label)
 
     def draw(self, pg, surf, fonts, value, hovered):
         surf.blit(fonts['bold'].render(self.label, True, SECTION_FG),
-                  (self.x, self.y + 7))
-        y = self.y + self.height - 3
-        pg.draw.line(surf, EDGE, (self.x, y), (self.x + self.w, y), 1)
+                  (self.x, self.y + self.k(7)))
+        y = self.y + self.height - self.k(3)
+        pg.draw.line(surf, EDGE, (self.x, y), (self.x + self.w, y),
+                     self.k(1))
 
 
 class ReadOnly(_Row):
     """A value the panel can show but not change (decided at launch)."""
 
-    height = 22
+    BASE_H = 22
     needs_value = True
 
     def __init__(self, key, label, scope=SIM):
@@ -110,9 +161,10 @@ class ReadOnly(_Row):
 
     def draw(self, pg, surf, fonts, value, hovered):
         surf.blit(fonts['small'].render(self.label, True, DIM),
-                  (self.x, self.y + 4))
+                  (self.x, self.y + self.k(4)))
         txt = fonts['small'].render(f'{value}', True, DIM)
-        surf.blit(txt, (self.x + self.w - txt.get_width(), self.y + 4))
+        surf.blit(txt, (self.x + self.w - txt.get_width(),
+                        self.y + self.k(4)))
 
 
 def wrap_text(text, max_px, measure, max_lines=None):
@@ -138,18 +190,22 @@ def wrap_text(text, max_px, measure, max_lines=None):
     return lines
 
 
-def _restart_tag(pg, surf, fonts, x, y, pending):
+def _restart_tag(pg, surf, fonts, x, y, pending, u=1.0):
     """Amber 'restart' marker (a drawn arrow-circle, not a glyph: a missing
     U+21BB renders as tofu on hosts without the font). Returns its width."""
+    def k(v):
+        return max(1, int(round(v * u)))
     col = WARN if pending else DIM
-    cx, cy = x + 5, y + 7
-    pg.draw.arc(surf, col, (cx - 5, cy - 5, 11, 11), 0.9, 5.6, 1)
-    pg.draw.polygon(surf, col, [(cx + 3, cy - 6), (cx + 7, cy - 1),
-                                (cx + 1, cy - 1)])
     txt = fonts['tiny'].render('restart' if not pending else 'pending',
                                True, col)
-    surf.blit(txt, (x + 14, y + 1))
-    return 14 + txt.get_width()
+    cx, cy = x + k(5), y + txt.get_height() // 2 + k(1)
+    r = k(5)
+    pg.draw.arc(surf, col, (cx - r, cy - r, 2 * r + 1, 2 * r + 1), 0.9, 5.6,
+                k(1))
+    pg.draw.polygon(surf, col, [(cx + k(3), cy - k(6)), (cx + k(7), cy - k(1)),
+                                (cx + k(1), cy - k(1))])
+    surf.blit(txt, (x + k(14), y + k(1)))
+    return k(14) + txt.get_width()
 
 
 def _label(pg, surf, fonts, row, x, y, color=DIM):
@@ -160,15 +216,15 @@ def _label(pg, surf, fonts, row, x, y, color=DIM):
                                              else ''), True, color)
     surf.blit(txt, (x, y))
     if row.restart:
-        _restart_tag(pg, surf, fonts, x + txt.get_width() + 8, y + 1,
-                     row.pending)
+        _restart_tag(pg, surf, fonts, x + txt.get_width() + row.k(8),
+                     y + row.k(1), row.pending, row.u)
 
 
 class Cycler(_Row):
     """`label` over `◀ value ▶` for a fixed option list. Clicking the left
     arrow steps back, anywhere else steps forward."""
 
-    height = 48
+    BASE_H = 48
     interactive = True
     needs_value = True
     ARROW_W = 28
@@ -191,35 +247,38 @@ class Cycler(_Row):
     def click(self, pos, value):
         if not self.hit(pos):
             return None
-        delta = -1 if pos[0] <= self.x + self.ARROW_W else 1
+        delta = -1 if pos[0] <= self.x + self.k(self.ARROW_W) else 1
         return (self.scope, self.key, self.step(value, delta))
 
     def draw(self, pg, surf, fonts, value, hovered):
-        _label(pg, surf, fonts, self, self.x, self.y + 1)
-        by = self.y + self.BOX_Y
-        r = (self.x, by, self.w, self.BOX_H)
-        pg.draw.rect(surf, HOVER if hovered else TRACK, r, border_radius=4)
-        pg.draw.rect(surf, WARN if self.pending else EDGE, r, 1,
-                     border_radius=4)
+        k = self.k
+        _label(pg, surf, fonts, self, self.x, self.y + k(1))
+        by = self.y + k(self.BOX_Y)
+        bh = k(self.BOX_H)
+        r = (self.x, by, self.w, bh)
+        pg.draw.rect(surf, HOVER if hovered else TRACK, r,
+                     border_radius=k(4))
+        pg.draw.rect(surf, WARN if self.pending else EDGE, r, k(1),
+                     border_radius=k(4))
         # Arrows are drawn, not typed: SysFont('monospace') resolves to
         # whatever the host has, and a missing U+25C0 glyph renders as tofu.
-        cy = by + self.BOX_H // 2
-        pg.draw.polygon(surf, ACCENT, [(self.x + 8, cy),
-                                       (self.x + 15, cy - 5),
-                                       (self.x + 15, cy + 5)])
-        rx = self.x + self.w - 8
-        pg.draw.polygon(surf, ACCENT, [(rx, cy), (rx - 7, cy - 5),
-                                       (rx - 7, cy + 5)])
+        cy = by + bh // 2
+        pg.draw.polygon(surf, ACCENT, [(self.x + k(8), cy),
+                                       (self.x + k(15), cy - k(5)),
+                                       (self.x + k(15), cy + k(5))])
+        rx = self.x + self.w - k(8)
+        pg.draw.polygon(surf, ACCENT, [(rx, cy), (rx - k(7), cy - k(5)),
+                                       (rx - k(7), cy + k(5))])
         txt = fonts['body'].render(str(value), True,
                                    WARN if self.pending else FG)
         surf.blit(txt, (self.x + (self.w - txt.get_width()) // 2,
-                        by + (self.BOX_H - txt.get_height()) // 2))
+                        by + (bh - txt.get_height()) // 2))
 
 
 class Toggle(_Row):
     """`[x] label` boolean."""
 
-    height = 26
+    BASE_H = 26
     interactive = True
     needs_value = True
     BOX = 14
@@ -236,24 +295,29 @@ class Toggle(_Row):
         return (self.scope, self.key, not bool(value))
 
     def draw(self, pg, surf, fonts, value, hovered):
-        by = self.y + (self.height - self.BOX) // 2
-        box = (self.x, by, self.BOX, self.BOX)
-        pg.draw.rect(surf, ACCENT if value else TRACK, box, border_radius=3)
-        pg.draw.rect(surf, EDGE if not hovered else ACCENT, box, 1,
-                     border_radius=3)
+        k = self.k
+        bs = k(self.BOX)
+        by = self.y + (self.height - bs) // 2
+        box = (self.x, by, bs, bs)
+        pg.draw.rect(surf, ACCENT if value else TRACK, box,
+                     border_radius=k(3))
+        pg.draw.rect(surf, EDGE if not hovered else ACCENT, box, k(1),
+                     border_radius=k(3))
         if value:
             pg.draw.lines(surf, BG, False,
-                          [(self.x + 3, by + 7), (self.x + 6, by + 10),
-                           (self.x + 11, by + 4)], 2)
-        _label(pg, surf, fonts, self, self.x + self.BOX + 8, self.y + 5,
-               FG if value else DIM)
+                          [(self.x + k(3), by + k(7)),
+                           (self.x + k(6), by + k(10)),
+                           (self.x + k(11), by + k(4))], k(2))
+        lh = fonts['small'].get_height()
+        _label(pg, surf, fonts, self, self.x + bs + k(8),
+               self.y + (self.height - lh) // 2, FG if value else DIM)
 
 
 class Slider(_Row):
     """`label ━━●━━ value unit`. The bar spans the full row width.
     `integer=True` emits ints (an int ROS parameter rejects a float)."""
 
-    height = 38
+    BASE_H = 38
     interactive = True
     needs_value = True
     BAR_Y = 26
@@ -271,7 +335,8 @@ class Slider(_Row):
 
     def _bar_x(self):
         """Inset by the knob radius so the knob never clips the row edge."""
-        return self.x + self.KNOB_R, max(self.w - 2 * self.KNOB_R, 1)
+        kr = self.k(self.KNOB_R)
+        return self.x + kr, max(self.w - 2 * kr, 1)
 
     def frac(self, value):
         span = self.hi - self.lo
@@ -300,25 +365,27 @@ class Slider(_Row):
         return f'{txt} {self.unit}'.rstrip()
 
     def draw(self, pg, surf, fonts, value, hovered):
-        _label(pg, surf, fonts, self, self.x, self.y + 2)
+        k = self.k
+        _label(pg, surf, fonts, self, self.x, self.y + k(2))
         vtxt = fonts['small'].render(self.format(value), True,
                                      WARN if self.pending else FG)
-        surf.blit(vtxt, (self.x + self.w - vtxt.get_width(), self.y + 2))
+        surf.blit(vtxt, (self.x + self.w - vtxt.get_width(), self.y + k(2)))
         bx, bw = self._bar_x()
-        by = self.y + self.BAR_Y
-        pg.draw.rect(surf, TRACK, (bx, by, bw, self.BAR_H), border_radius=3)
+        bh = k(self.BAR_H)
+        by = self.y + k(self.BAR_Y)
+        pg.draw.rect(surf, TRACK, (bx, by, bw, bh), border_radius=k(3))
         f = self.frac(value)
         col = WARN if self.pending else ACCENT
-        pg.draw.rect(surf, col, (bx, by, int(bw * f), self.BAR_H),
-                     border_radius=3)
+        pg.draw.rect(surf, col, (bx, by, int(bw * f), bh),
+                     border_radius=k(3))
         pg.draw.circle(surf, FG if hovered else col,
-                       (int(bx + bw * f), by + self.BAR_H // 2), self.KNOB_R)
+                       (int(bx + bw * f), by + bh // 2), k(self.KNOB_R))
 
 
 class Button(_Row):
     """One-shot command. `scope` is ACTION and `key` is the action name."""
 
-    height = 30
+    BASE_H = 30
     interactive = True
 
     def __init__(self, action, label, toggled_label=None):
@@ -334,8 +401,8 @@ class Button(_Row):
         on = bool(value)
         r = (self.x, self.y, self.w, self.height)
         pg.draw.rect(surf, BTN_ON if on else (BTN if not hovered else HOVER),
-                     r, border_radius=4)
-        pg.draw.rect(surf, EDGE, r, 1, border_radius=4)
+                     r, border_radius=self.k(4))
+        pg.draw.rect(surf, EDGE, r, self.k(1), border_radius=self.k(4))
         label = self.toggled_label if (on and self.toggled_label) else \
             self.label
         txt = fonts['body'].render(label, True, FG)
@@ -348,7 +415,7 @@ class ApplyButton(Button):
     number of pending edits."""
 
     needs_value = True
-    height = 34
+    BASE_H = 34
 
     def __init__(self):
         super().__init__('apply', 'APPLY & RESTART')
@@ -361,8 +428,8 @@ class ApplyButton(Button):
             edge = WARN
         else:
             fill, edge = (BTN if not hovered else HOVER), EDGE
-        pg.draw.rect(surf, fill, r, border_radius=4)
-        pg.draw.rect(surf, edge, r, 1, border_radius=4)
+        pg.draw.rect(surf, fill, r, border_radius=self.k(4))
+        pg.draw.rect(surf, edge, r, self.k(1), border_radius=self.k(4))
         label = f'APPLY & RESTART ({n})' if n else 'APPLY & RESTART'
         txt = fonts['body'].render(label, True, FG if n else DIM)
         surf.blit(txt, (self.x + (self.w - txt.get_width()) // 2,
@@ -373,7 +440,7 @@ class ButtonPair(_Row):
     """Two half-width buttons on one row (reset episode / pause). The value
     is a dict {action: toggled?} so a toggle button can show its state."""
 
-    height = 30
+    BASE_H = 30
     interactive = True
     needs_value = True
     GAP = 6
@@ -384,8 +451,9 @@ class ButtonPair(_Row):
         self.items = list(items)
 
     def _slot(self, i):
-        w = (self.w - self.GAP * (len(self.items) - 1)) // len(self.items)
-        return self.x + i * (w + self.GAP), w
+        g = self.k(self.GAP)
+        w = (self.w - g * (len(self.items) - 1)) // len(self.items)
+        return self.x + i * (w + g), w
 
     def click(self, pos, value):
         if not self.hit(pos):
@@ -403,8 +471,8 @@ class ButtonPair(_Row):
             on = bool(value.get(action))
             r = (sx, self.y, sw, self.height)
             pg.draw.rect(surf, BTN_ON if on else (
-                BTN if not hovered else HOVER), r, border_radius=4)
-            pg.draw.rect(surf, EDGE, r, 1, border_radius=4)
+                BTN if not hovered else HOVER), r, border_radius=self.k(4))
+            pg.draw.rect(surf, EDGE, r, self.k(1), border_radius=self.k(4))
             txt = fonts['small'].render(toggled if (on and toggled)
                                         else label, True, FG)
             surf.blit(txt, (sx + (sw - txt.get_width()) // 2,
@@ -415,7 +483,7 @@ class ModeBar(_Row):
     """The three mode buttons. Value: {'current': mode|None, 'enabled': bool}.
     A click returns (ACTION, 'mode', <mode name>)."""
 
-    height = 34
+    BASE_H = 34
     interactive = True
     needs_value = True
     GAP = 4
@@ -427,8 +495,9 @@ class ModeBar(_Row):
 
     def _slot(self, i):
         n = len(self.modes)
-        w = (self.w - self.GAP * (n - 1)) // n
-        return self.x + i * (w + self.GAP), w
+        g = self.k(self.GAP)
+        w = (self.w - g * (n - 1)) // n
+        return self.x + i * (w + g), w
 
     def click(self, pos, value):
         if not self.hit(pos):
@@ -449,9 +518,9 @@ class ModeBar(_Row):
             fill = (36, 88, 118) if on else BTN
             if not enabled:
                 fill = (34, 38, 50)
-            pg.draw.rect(surf, fill, r, border_radius=5)
-            pg.draw.rect(surf, ACCENT if on else EDGE, r, 2 if on else 1,
-                         border_radius=5)
+            pg.draw.rect(surf, fill, r, border_radius=self.k(5))
+            pg.draw.rect(surf, ACCENT if on else EDGE, r,
+                         self.k(2 if on else 1), border_radius=self.k(5))
             txt = fonts['small'].render(label, True,
                                         FG if (enabled and on) else
                                         (DIM if not enabled else FG))
@@ -460,14 +529,30 @@ class ModeBar(_Row):
 
 
 class TextBlock(_Row):
-    """Fixed-height wrapped paragraph; the value is the text."""
+    """Wrapped paragraph; the value is the text. Its height is the number of
+    lines the LONGEST candidate in `texts` needs at the panel width (see
+    `fit`), so switching between texts never moves the rows below it. Until
+    `fit` runs it reserves `lines` lines."""
 
     needs_value = True
 
-    def __init__(self, key, lines=4, scope=ACTION, line_h=15, color=DIM):
+    def __init__(self, key, lines=4, scope=ACTION, line_h=18, color=DIM,
+                 texts=()):
         super().__init__(key, key, scope)
         self.lines, self.line_h, self.color = lines, line_h, color
-        self.height = lines * line_h + 2
+        self.texts = list(texts)
+
+    BASE_H = 0
+
+    @property
+    def height(self):
+        return self.lines * self.k(self.line_h) + self.k(2)
+
+    def fit(self, width, measure):
+        """Size to the longest candidate text. `measure(str) -> px`."""
+        if self.texts:
+            self.lines = max(len(wrap_text(t, width, measure))
+                             for t in self.texts)
 
     def draw(self, pg, surf, fonts, value, hovered):
         f = fonts['small']
@@ -475,14 +560,14 @@ class TextBlock(_Row):
                                          lambda t: f.size(t)[0],
                                          self.lines)):
             surf.blit(f.render(ln, True, self.color),
-                      (self.x, self.y + i * self.line_h))
+                      (self.x, self.y + i * self.k(self.line_h)))
 
 
 class StatusBar(_Row):
     """Stack status: coloured dot + state text, optional progress bar and a
-    one-line note. Value: {'state','text','note','frac'}."""
+    note wrapped to two lines. Value: {'state','text','note','frac'}."""
 
-    height = 40
+    BASE_H = 62
     needs_value = True
     COLORS = {'running': OK, 'failed': BAD, 'idle': DIM, 'unmanaged': DIM}
 
@@ -490,33 +575,40 @@ class StatusBar(_Row):
         super().__init__('status', 'status', ACTION)
 
     def draw(self, pg, surf, fonts, value, hovered):
+        k = self.k
         value = value or {}
         col = self.COLORS.get(value.get('state'), WARN)
-        pg.draw.circle(surf, col, (self.x + 6, self.y + 9), 5)
-        txt = fonts['small'].render(value.get('text', ''), True, FG)
-        surf.blit(txt, (self.x + 18, self.y + 2))
+        f = fonts['small']
+        pg.draw.circle(surf, col, (self.x + k(6), self.y + f.get_height() // 2
+                                   + k(2)), k(5))
+        line = wrap_text(value.get('text', ''), self.w - k(18),
+                         lambda t: f.size(t)[0], 1)
+        surf.blit(f.render(line[0] if line else '', True, FG),
+                  (self.x + k(18), self.y + k(2)))
         frac = value.get('frac')
-        by = self.y + 20
+        by = self.y + f.get_height() + k(5)
         if frac is not None:
-            pg.draw.rect(surf, TRACK, (self.x, by, self.w, 4),
-                         border_radius=2)
+            pg.draw.rect(surf, TRACK, (self.x, by, self.w, k(4)),
+                         border_radius=k(2))
             pg.draw.rect(surf, col, (self.x, by, int(self.w *
-                                                      _clamp(frac, 0, 1)), 4),
-                         border_radius=2)
+                                                      _clamp(frac, 0, 1)),
+                                     k(4)), border_radius=k(2))
         note = value.get('note', '')
         if note:
-            f = fonts['tiny']
-            line = wrap_text(note, self.w, lambda t: f.size(t)[0], 1)
-            surf.blit(f.render(line[0] if line else '', True,
-                               WARN if value.get('state') != 'failed'
-                               else BAD), (self.x, self.y + 26))
+            t = fonts['tiny']
+            step = t.get_linesize()
+            for i, ln in enumerate(wrap_text(note, self.w,
+                                             lambda x: t.size(x)[0], 2)):
+                surf.blit(t.render(ln, True, WARN if value.get('state')
+                                   != 'failed' else BAD),
+                          (self.x, by + k(7) + i * step))
 
 
 class TabBar(_Row):
     """Row of tab headers. Clicking one switches tab (handled by
     ControlPanel; nothing reaches the sim)."""
 
-    height = 28
+    BASE_H = 28
     interactive = True
     needs_value = False
 
@@ -546,13 +638,15 @@ class TabBar(_Row):
         for i, name in enumerate(self.names):
             sx, sw = self._slot(i)
             on = name == self.active
+            k = self.k
             r = (sx, self.y, sw - 2, self.height)
             pg.draw.rect(surf, (40, 52, 74) if on else TRACK, r,
-                         border_top_left_radius=5, border_top_right_radius=5)
+                         border_top_left_radius=k(5),
+                         border_top_right_radius=k(5))
             pg.draw.line(surf, ACCENT if on else EDGE,
                          (sx, self.y + self.height - 1),
                          (sx + sw - 2, self.y + self.height - 1),
-                         3 if on else 1)
+                         k(3) if on else k(1))
             txt = fonts['small'].render(name, True, FG if on else DIM)
             surf.blit(txt, (sx + (sw - 2 - txt.get_width()) // 2,
                             self.y + (self.height - txt.get_height()) // 2))
@@ -564,28 +658,46 @@ class Panel:
     `get(scope, key)` supplies the live value of any row; the panel never
     caches it. Mouse handlers return `(scope, key, value)` change requests
     (or None) for the caller to apply — the panel does no I/O itself.
+    `ui_scale` multiplies every size (see module constants).
     """
 
-    def __init__(self, rows, width):
+    def __init__(self, rows, width, ui_scale=1.0):
         self.rows = rows
         self.width = width
+        self.u = clamp_scale(ui_scale) if ui_scale != 1.0 else 1.0
         self._drag = None
         self._hover = None
         self.height = 0
+        self._set_scale(self.rows)
+
+    def _set_scale(self, rows):
+        for r in rows:
+            r.u = self.u
+
+    @property
+    def pad(self):
+        return max(1, int(round(PAD * self.u)))
+
+    @property
+    def gap(self):
+        return max(1, int(round(ROW_GAP * self.u)))
 
     def layout(self, x, y):
-        cy = y + PAD
-        inner = self.width - 2 * PAD
+        cy = y + self.pad
+        inner = self.width - 2 * self.pad
         for r in self.rows:
-            r.place(x + PAD, cy, inner)
-            cy += r.height + ROW_GAP
-        self.height = cy - y + PAD - ROW_GAP
+            r.place(x + self.pad, cy, inner)
+            cy += r.height + self.gap
+        self.height = cy - y + self.pad - self.gap
         return self.height
+
+    def _hit(self, r, pos):
+        return r.hit(pos)
 
     # --- events ---------------------------------------------------------
     def mouse_down(self, pos, get):
         for r in self.rows:
-            if not r.interactive or not r.hit(pos):
+            if not r.interactive or not self._hit(r, pos):
                 continue
             if isinstance(r, Slider):
                 self._drag = r
@@ -599,35 +711,60 @@ class Panel:
     def mouse_move(self, pos):
         """Track hover; while dragging a slider, keep emitting new values."""
         self._hover = next((r for r in self.rows
-                            if r.interactive and r.hit(pos)), None)
+                            if r.interactive and self._hit(r, pos)), None)
         if self._drag is None:
             return None
         return (self._drag.scope, self._drag.key,
                 self._drag.value_at(pos[0]))
 
     # --- drawing --------------------------------------------------------
+    def _draw_row(self, pg, surf, r, get, is_pending):
+        if is_pending is not None and r.restart:
+            r.pending = bool(is_pending(r.key))
+        value = get(r.scope, r.key) if r.needs_value else None
+        r.draw(pg, surf, self.fonts, value, r is self._hover)
+
     def draw(self, pg, surf, x, y, fonts, get, is_pending=None):
+        self.fonts = fonts
         pg.draw.rect(surf, BG, (x, y, self.width, surf.get_height() - y))
         pg.draw.line(surf, EDGE, (x, y), (x, surf.get_height()), 1)
         for r in self.rows:
-            if is_pending is not None and r.restart:
-                r.pending = bool(is_pending(r.key))
-            value = get(r.scope, r.key) if r.needs_value else None
-            r.draw(pg, surf, fonts, value, r is self._hover)
+            self._draw_row(pg, surf, r, get, is_pending)
 
 
 class ControlPanel(Panel):
     """Header (modes, description, status, tab bar) + one tab's fields +
-    footer. Only the active tab's rows exist for hit-testing and drawing."""
+    footer. Only the active tab's rows exist for hit-testing and drawing.
 
-    def __init__(self, header, tabs, footer, width, tab_bar):
+    `layout(x, y)` sizes the panel to its tallest tab (no scrolling).
+    `layout(x, y, h)` fits it into a window `h` tall: header on top, footer
+    pinned to the bottom, and the tab fields in between become a scrollable
+    viewport (mouse wheel) whenever they do not fit. Fields are clipped to
+    the viewport, and hit-testing ignores the clipped part."""
+
+    SCROLL_STEP = 48                     # base px per wheel notch
+
+    def __init__(self, header, tabs, footer, width, tab_bar, ui_scale=1.0):
         self.header, self.tabs, self.footer = header, tabs, footer
         self.tab_bar = tab_bar
         self.active = tab_bar.active
-        super().__init__(self._rows(), width)
+        self.scroll = 0
+        self.viewport = (0, 0, 0, 0)     # x, y, w, h of the field area
+        self.content_h = 0
+        self.metrics = None              # measure(str) -> px, for wrapping
+        self._xy = (0, 0)
+        self._h = None
+        super().__init__(self._rows(), width, ui_scale)
+        self._set_scale(self.header + self.footer
+                        + [r for t in tabs.values() for r in t])
 
     def _rows(self):
         return self.header + self.tabs[self.active] + self.footer
+
+    def set_metrics(self, measure):
+        """Text measurer (the real font's width fn) used to size wrapped
+        blocks. Call before `layout`."""
+        self.metrics = measure
 
     def set_tab(self, name):
         if name not in self.tabs or name == self.active:
@@ -635,31 +772,94 @@ class ControlPanel(Panel):
         self.active = self.tab_bar.active = name
         self._drag = self._hover = None
         self.rows = self._rows()
+        self.scroll = 0
+        self._place_tabs()
 
     def _stack_height(self, rows):
-        return sum(r.height for r in rows) + ROW_GAP * len(rows)
+        return sum(r.height for r in rows) + self.gap * len(rows)
 
     def tab_height(self, name):
         return self._stack_height(self.tabs[name])
 
-    def layout(self, x, y):
-        inner = self.width - 2 * PAD
-        cy = y + PAD
+    def min_height(self):
+        """Smallest window height that still shows header, footer and at
+        least the tallest single field."""
+        head = self.pad + self._stack_height(self.header)
+        foot = self._stack_height(self.footer) + self.pad - self.gap
+        field = max(r.height for t in self.tabs.values() for r in t)
+        return head + field + self.gap + foot
+
+    # --- layout ---------------------------------------------------------
+    def layout(self, x, y, h=None):
+        self._xy, self._h = (x, y), h
+        pad, gap = self.pad, self.gap
+        inner = self.width - 2 * pad
+        if self.metrics is not None:
+            for r in self.header:
+                if isinstance(r, TextBlock):
+                    r.fit(inner, self.metrics)
+        cy = y + pad
         for r in self.header:
-            r.place(x + PAD, cy, inner)
-            cy += r.height + ROW_GAP
+            r.place(x + pad, cy, inner)
+            cy += r.height + gap
         top = cy
-        for name, rows in self.tabs.items():
-            c = top
-            for r in rows:
-                r.place(x + PAD, c, inner)
-                c += r.height + ROW_GAP
-        cy = top + max(self.tab_height(n) for n in self.tabs)
+        foot_h = self._stack_height(self.footer) - gap
+        tallest = max(self.tab_height(n) for n in self.tabs)
+        if h is None:
+            vp_h = tallest
+            foot_y = top + vp_h
+            self.height = foot_y + foot_h + pad - y
+        else:
+            foot_y = y + h - pad - foot_h
+            vp_h = max(foot_y - top - gap, 0)
+            self.height = h
+        cy = foot_y
         for r in self.footer:
-            r.place(x + PAD, cy, inner)
-            cy += r.height + ROW_GAP
-        self.height = cy - y + PAD - ROW_GAP
+            r.place(x + pad, cy, inner)
+            cy += r.height + gap
+        self.viewport = (x, top, self.width, vp_h)
+        self._place_tabs()
         return self.height
+
+    @property
+    def max_scroll(self):
+        return max(0, self.tab_height(self.active) - self.gap
+                   - self.viewport[3])
+
+    def _place_tabs(self):
+        x, y = self._xy
+        self.scroll = int(_clamp(self.scroll, 0, self.max_scroll))
+        inner = self.width - 2 * self.pad
+        _, top, _, _ = self.viewport
+        for rows in self.tabs.values():
+            c = top - self.scroll
+            for r in rows:
+                r.place(x + self.pad, c, inner)
+                c += r.height + self.gap
+
+    def scrollable(self):
+        return self.max_scroll > 0
+
+    def wheel(self, pos, dy):
+        """Mouse wheel over the panel. dy>0 = wheel up (content moves down,
+        i.e. scroll position decreases). True if the panel consumed it."""
+        x, y = self._xy
+        if not (x <= pos[0] <= x + self.width):
+            return False
+        if self.scrollable():
+            self.scroll -= int(dy * self.SCROLL_STEP * self.u)
+            self._place_tabs()
+        return True
+
+    # --- events ---------------------------------------------------------
+    def _in_viewport(self, pos):
+        vx, vy, vw, vh = self.viewport
+        return vx <= pos[0] <= vx + vw and vy <= pos[1] <= vy + vh
+
+    def _hit(self, r, pos):
+        if r in self.tabs[self.active] and not self._in_viewport(pos):
+            return False
+        return r.hit(pos)
 
     def mouse_down(self, pos, get):
         change = super().mouse_down(pos, get)
@@ -667,6 +867,34 @@ class ControlPanel(Panel):
             self.set_tab(change[2])
             return None
         return change
+
+    # --- drawing --------------------------------------------------------
+    def draw(self, pg, surf, x, y, fonts, get, is_pending=None):
+        self.fonts = fonts
+        pg.draw.rect(surf, BG, (x, y, self.width, surf.get_height() - y))
+        pg.draw.line(surf, EDGE, (x, y), (x, surf.get_height()), 1)
+        fields = self.tabs[self.active]
+        for r in self.header + self.footer:
+            self._draw_row(pg, surf, r, get, is_pending)
+        vx, vy, vw, vh = self.viewport
+        old = surf.get_clip()
+        surf.set_clip(pg.Rect(vx + 1, vy, vw - 1, vh).clip(old))
+        for r in fields:
+            if r.y + r.height >= vy and r.y <= vy + vh:
+                self._draw_row(pg, surf, r, get, is_pending)
+        surf.set_clip(old)
+        if self.scrollable() and vh > 0:
+            total = self.max_scroll + vh
+            bh = max(self.k_(20), int(vh * vh / total))
+            by = vy + int((vh - bh) * self.scroll / self.max_scroll)
+            tw = self.k_(4)
+            pg.draw.rect(surf, TRACK, (vx + vw - tw - 2, vy, tw, vh),
+                         border_radius=2)
+            pg.draw.rect(surf, ACCENT, (vx + vw - tw - 2, by, tw, bh),
+                         border_radius=2)
+
+    def k_(self, v):
+        return max(1, int(round(v * self.u)))
 
 
 def _tabs(strategies, capture_modes, evaders, envs):
@@ -760,19 +988,24 @@ def _tabs(strategies, capture_modes, evaders, envs):
 
 
 def build_panel(strategies, capture_modes, evaders, envs, width,
-                mode_names=None):
+                mode_names=None, ui_scale=1.0):
     """The shipped control panel.
 
     `strategies` comes from behaviors.pursuit.STRATEGIES and `evaders`
     from the installed target_controller, so a new tactic or brain shows up
-    in the GUI without touching this file."""
+    in the GUI without touching this file. `width` is the final pixel width
+    (the caller already multiplied by `ui_scale`)."""
     from . import stack_config as sc
     modes = [(m, sc.MODE_SHORT[m]) for m in (mode_names or sc.MODES)]
     tabs = _tabs(strategies, capture_modes, evaders, envs)
     tab_bar = TabBar(list(tabs))
-    header = [ModeBar(modes), TextBlock('mode_desc', lines=5),
+    # Every description (plus the longest ' Evader: x.' suffix the node
+    # appends) is a sizing candidate, so the box never truncates any mode.
+    longest = max(sc.ALL_EVADERS, key=len)
+    descs = [t + f' Evader: {longest}.' for t in sc.MODE_DESCRIPTIONS.values()]
+    header = [ModeBar(modes), TextBlock('mode_desc', lines=5, texts=descs),
               StatusBar(), tab_bar]
     footer = [ApplyButton(),
               ButtonPair([('reset_episode', 'RESET EPISODE', None),
                           ('toggle_pause', 'PAUSE', 'RESUME')])]
-    return ControlPanel(header, tabs, footer, width, tab_bar)
+    return ControlPanel(header, tabs, footer, width, tab_bar, ui_scale)

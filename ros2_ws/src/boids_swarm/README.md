@@ -79,8 +79,11 @@ of ≥`capture_k` boids within `d_capture`) | `escape_blocked` | `tag` (HP).
 
 ## Control panel
 
-The window is `window_px + panel_px` wide: arena on the left, the control
-panel on the right. It has three parts: a **mode bar** with a one-paragraph
+The window is `window_px + panel_px * ui_scale` wide: arena on the left, the
+control panel on the right. `ui_scale:=1.5` (default; 1.0-2.5) scales every
+font and size; the window shrinks to fit the screen and can be resized, the
+arena stays square, and tab fields scroll with the mouse wheel when the
+window is too short. It has three parts: a **mode bar** with a one-paragraph
 explanation and a live stack status, five **tabs** of fields, and a footer
 (**Apply & restart**, reset episode, pause).
 

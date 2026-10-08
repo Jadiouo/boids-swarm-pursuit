@@ -174,7 +174,10 @@ class PygameSimNode(Node):
         self.declare_parameter('sighting_valid_for_sec', 0.6)
         # --- in-window control panel (v5 M15) ---
         self.declare_parameter('ui_enabled', True)
-        self.declare_parameter('panel_px', 360)
+        self.declare_parameter('panel_px', 360)    # width at ui_scale 1.0
+        # One knob for every size in the window (fonts, row heights, panel
+        # width, HUD). 1.0 = the old compact look; clamped to 1.0-2.5.
+        self.declare_parameter('ui_scale', 1.5)
         # Display-only name of the environment. env_type is forced to
         # 'custom' when the launch pre-generates the layout, so it cannot
         # be used to tell the user which env they actually asked for.
@@ -847,33 +850,69 @@ class PygameSimNode(Node):
         if self.headless:
             os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
         pygame.init()
+        pygame.font.init()
+        self.ui_scale = ui.clamp_scale(self._p('ui_scale'))
+        u = self.ui_scale
+        self.fonts = ui.make_fonts(pygame, u)
+        self.font = self.fonts['hud']
+        self.big_font = self.fonts['big']
+        self.panel_w = int(round(int(self._p('panel_px')) * u)) \
+            if self.ui_on else 0
         px = int(self._p('window_px'))
-        self.arena_px = px
-        self.font = pygame.font.SysFont('monospace', 15)
-        self.big_font = pygame.font.SysFont('monospace', 34, bold=True)
-        self.fonts = {
-            'body': pygame.font.SysFont('monospace', 15),
-            'small': pygame.font.SysFont('monospace', 13),
-            'tiny': pygame.font.SysFont('monospace', 11),
-            'bold': pygame.font.SysFont('monospace', 13, bold=True),
-        }
-        panel_px = 0
-        win_h = px
         if self.ui_on:
-            panel_px = int(self._p('panel_px'))
             self.panel = ui.build_panel(
                 strategies=tuple(STRATEGIES),
                 capture_modes=('hull', 'escape_blocked', 'tag'),
                 # only brains the installed target_controller can build
                 # (it would crash at construction on an unknown one)
                 evaders=self.available_evaders,
-                envs=stack_config.ENVS, width=panel_px)
-            # Lay out first: a tall panel decides the window height, so a
-            # small window_px doesn't clip the bottom controls away.
-            win_h = max(px, self.panel.layout(px, 0))
-        self.screen = pygame.display.set_mode((px + panel_px, win_h))
+                envs=stack_config.ENVS, width=self.panel_w, ui_scale=u)
+            self.panel.set_metrics(
+                lambda t: self.fonts['small'].size(t)[0])
+            self.panel.layout(0, 0)             # natural (unscrolled) size
+        # Fit the screen we are on: the arena stays square and shrinks
+        # before the window outgrows the display; a panel taller than the
+        # screen scrolls instead of being clipped.
+        info = pygame.display.Info()
+        dw, dh = info.current_w, info.current_h
+        max_w = dw - 40 if dw > 0 else 10 ** 6
+        max_h = dh - 90 if dh > 0 else 10 ** 6
+        px = max(240, min(px, max_w - self.panel_w, max_h))
+        want_h = px
+        if self.panel is not None:
+            want_h = max(px, self.panel.height)
+        win_h = max(self._min_h(), min(want_h, max_h))
+        # a tall window gets a bigger (still square) arena if the width allows
+        px = max(px, min(win_h, max_w - self.panel_w))
+        self.screen = pygame.display.set_mode(
+            (px + self.panel_w, win_h), pygame.RESIZABLE)
         pygame.display.set_caption('boids_swarm — cooperative pursuit')
-        self.scale = px / self.world
+        self._relayout(px + self.panel_w, win_h)
+
+    def _min_h(self):
+        return max(240, self.panel.min_height()) if self.panel else 240
+
+    def _relayout(self, w, h):
+        """(Re)compute the arena square and panel placement for a window of
+        w x h: the arena is the largest square left of the panel, the panel
+        is flush right and as tall as the window."""
+        self.win_w, self.win_h = w, h
+        self.arena_px = max(120, min(h, w - self.panel_w))
+        self.scale = self.arena_px / self.world
+        self._veil = None
+        if self.panel is not None:
+            self.panel_x = w - self.panel_w
+            self.panel.layout(self.panel_x, 0, h)
+
+    def _on_resize(self, w, h):
+        import pygame
+        need = self._min_h()
+        min_w = self.panel_w + 200
+        if h < need or w < min_w:           # below the usable minimum
+            w, h = max(w, min_w), max(h, need)
+            pygame.display.set_mode((w, h), pygame.RESIZABLE)
+        self.screen = pygame.display.get_surface()
+        self._relayout(w, h)
 
     def _to_px(self, x, y):
         return int(x * self.scale), int((self.world - y) * self.scale)
@@ -1097,8 +1136,12 @@ class PygameSimNode(Node):
             if ev.type == pygame.QUIT or (
                     ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
                 self.running = False
+            elif ev.type == pygame.VIDEORESIZE:
+                self._on_resize(ev.w, ev.h)
             elif self.panel is None:
                 continue
+            elif ev.type == pygame.MOUSEWHEEL:
+                self.panel.wheel(pygame.mouse.get_pos(), ev.y)
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 self._ui_apply(self.panel.mouse_down(ev.pos, self._ui_value))
             elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
@@ -1117,6 +1160,17 @@ class PygameSimNode(Node):
             pts.append((cx + r * math.cos(a), cy - r * math.sin(a)))
         pygame.draw.polygon(self.screen, color, pts)
 
+    def _blit_centered(self, font, text, color, cy, max_w=None):
+        """Word-wrapped, horizontally centred (on the arena) text block
+        whose first line is centred on `cy`. Returns the y below it."""
+        max_w = max_w or int(self.arena_px * 0.92)
+        for ln in ui.wrap_text(text, max_w, lambda t: font.size(t)[0]):
+            img = font.render(ln, True, color)
+            self.screen.blit(img, (self.arena_px // 2 - img.get_width() // 2,
+                                   cy - img.get_height() // 2))
+            cy += int(font.get_linesize() * 1.1)
+        return cy
+
     def _draw_hold_overlay(self, pygame):
         """The world is frozen while the stack (re)starts; say why."""
         v = self._status_view()
@@ -1125,13 +1179,10 @@ class PygameSimNode(Node):
                 (self.arena_px, self.arena_px), pygame.SRCALPHA)
             self._veil.fill((10, 14, 24, 150))
         self.screen.blit(self._veil, (0, 0))
-        for i, (txt, font, col) in enumerate((
-                (v['text'], self.big_font, (255, 220, 90)),
-                ('world paused until the controllers are up', self.font,
-                 HUD))):
-            img = font.render(txt[:46], True, col)
-            self.screen.blit(img, (self.arena_px // 2 - img.get_width() // 2,
-                                   self.arena_px // 2 - 30 + i * 44))
+        cy = self.arena_px // 2 - self.big_font.get_linesize()
+        cy = self._blit_centered(self.big_font, v['text'], (255, 220, 90), cy)
+        self._blit_centered(self.font, 'world paused until the controllers '
+                            'are up', HUD, cy + int(8 * self.ui_scale))
 
     def render(self):
         shot_dir = self._p('screenshot_dir')
@@ -1179,39 +1230,46 @@ class PygameSimNode(Node):
             pygame.draw.circle(self.screen, (70, 45, 45), tpx,
                                int(self._p('d_capture') * self.scale * 0.5), 1)
 
-        # --- HUD (§4.6) ---
+        # --- HUD (§4.6) --- two lines, wrapped to the arena, then bars
         s = self.score
+        u = self.ui_scale
         hud = (f'ep {s.episode}  t={s.t_episode:6.1f}s  '
-               f'captures {s.captures}/{max(s.episode - 1, 0)}  '
+               f'captures {s.captures}/{max(s.episode - 1, 0)}',
                f'close {self.n_close}/{int(self._p("capture_k"))}  '
                f'min_d {s.min_pairwise:.2f}')
-        self.screen.blit(self.font.render(hud, True, HUD), (8, 6))
+        m = int(round(8 * u))
+        y = int(round(6 * u))
+        for ln in hud:
+            img = self.font.render(ln, True, HUD)
+            self.screen.blit(img, (m, y))
+            y += self.font.get_linesize()
+        y += int(round(4 * u))
+        bar_w, bar_h = int(round(120 * u)), int(round(8 * u))
         if self._p('target_stamina_enabled') and self.target_enabled:
-            pygame.draw.rect(self.screen, (60, 60, 60), (8, 26, 120, 8))
+            pygame.draw.rect(self.screen, (60, 60, 60), (m, y, bar_w, bar_h))
             pygame.draw.rect(self.screen, (240, 200, 60),
-                             (8, 26, int(120 * self.stamina), 8))
+                             (m, y, int(bar_w * self.stamina), bar_h))
+            y += bar_h + int(round(4 * u))
         if self._p('capture_mode') == 'tag' and self.target_enabled:
             frac = max(self.tag_hp.hp, 0.0) / self.tag_hp.hp_max
-            pygame.draw.rect(self.screen, (60, 60, 60), (8, 38, 120, 8))
+            pygame.draw.rect(self.screen, (60, 60, 60), (m, y, bar_w, bar_h))
             pygame.draw.rect(self.screen, TARGET,
-                             (8, 38, int(120 * frac), 8))
+                             (m, y, int(bar_w * frac), bar_h))
         if self.state == 'banner':
-            txt = self.big_font.render(self.banner_text, True,
-                                       (255, 220, 90))
-            r = txt.get_rect(center=self.screen.get_rect().center)
-            self.screen.blit(txt, r)
+            self._blit_centered(self.big_font, self.banner_text,
+                                (255, 220, 90), self.arena_px // 2)
         if self.game_mode == 'human' and self.target_enabled:
             tip = self.font.render(
                 'HUMAN TARGET: arrows to drive (UP sprint)', True, HUD)
-            self.screen.blit(tip, (8, int(self.world * self.scale) - 22))
+            self.screen.blit(tip, (m, self.arena_px - tip.get_height() - m))
         if self.paused:
-            txt = self.big_font.render('PAUSED', True, (255, 220, 90))
-            self.screen.blit(txt, (self.arena_px // 2 - txt.get_width() // 2,
-                                   self.arena_px // 2 - 60))
+            self._blit_centered(self.big_font, 'PAUSED', (255, 220, 90),
+                                self.arena_px // 2 - 2 * self.big_font
+                                .get_linesize())
         if self.managed and self.hold:
             self._draw_hold_overlay(pygame)
         if self.panel is not None:
-            self.panel.draw(pygame, self.screen, self.arena_px, 0,
+            self.panel.draw(pygame, self.screen, self.panel_x, 0,
                             self.fonts, self._ui_value,
                             self.pstate.is_pending)
         if shot_due:

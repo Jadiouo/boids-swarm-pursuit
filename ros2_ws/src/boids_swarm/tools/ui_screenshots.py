@@ -58,13 +58,27 @@ def shot(node, path):
     print('wrote', path)
 
 
+def _fake_1080p():
+    """The dummy driver reports a 1024x768 'display'; pretend to be a 1080p
+    monitor so the window is sized as it would be for a real user."""
+    import types
+    import pygame
+    real = pygame.display.Info
+    pygame.display.Info = lambda: types.SimpleNamespace(
+        current_w=1920, current_h=1080) if real().current_w <= 1024 \
+        else real()
+
+
 def main(out):
     os.makedirs(out, exist_ok=True)
+    scale = os.environ.get('UI_SCALE', '1.5')
     args = ['--ros-args', '-p', 'stack_managed:=true',
+            '-p', f'ui_scale:={scale}',
             '-p', 'ui_enabled:=true', '-p', 'num_agents:=8',
             '-p', 'target_stamina_enabled:=true']
     rclpy.init(args=args)
     node = PygameSimNode()
+    _fake_1080p()
     node.setup_display()
     node.pstate.applied['env'] = 'obstacle_field'
     settle(node)

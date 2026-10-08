@@ -43,7 +43,8 @@ def test_headless_and_ui_off_launch_is_unchanged(case):
 
 
 # keys that legitimately differ between the two launch paths
-_SIM_ONLY = ('headless', 'ui_enabled', 'stack_managed', 'stack_launch_args')
+_SIM_ONLY = ('headless', 'ui_enabled', 'ui_scale', 'stack_managed',
+             'stack_launch_args')
 
 
 def _strip_sim(act):

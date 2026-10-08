@@ -465,3 +465,238 @@ def test_status_view_warmup_countdown_and_progress():
 def test_status_view_unmanaged_explains_itself():
     v = status_view({}, False)
     assert v['state'] == 'unmanaged' and 'externally' in v['text']
+
+
+# --- ui_scale: layout at 1.0 / 1.5 / 2.0, scrolling, wrapping -------------------
+
+SCALES = (1.0, 1.5, 2.0)
+
+
+def _scaled(u, win_h=None, px_w=360, x=800):
+    """Shipped panel at ui_scale u in a window win_h tall (None = natural).
+    A fake proportional font stands in for pygame (8 px/char at 1.0x)."""
+    p = ui.build_panel(STRATS, ('hull', 'tag'), sc.ALL_EVADERS, ENVS,
+                       int(round(px_w * u)), ui_scale=u)
+    p.set_metrics(lambda t: len(t) * 8.0 * u)
+    p.layout(x, 0, win_h)
+    return p
+
+
+def _scroll_to_show(p, r):
+    """Scroll so row `r` of the active tab is fully inside the viewport."""
+    _, vy, _, vh = p.viewport
+    p.scroll = 0
+    p._place_tabs()
+    off = r.y - vy                           # row top relative to viewport
+    p.scroll = max(0, min(off - (vh - r.height) // 2, p.max_scroll))
+    p._place_tabs()
+
+
+@pytest.mark.parametrize('u', SCALES)
+@pytest.mark.parametrize('win_h', (None, 1000, 700))
+def test_scaled_layout_has_no_overlap_in_any_tab(u, win_h):
+    p = _scaled(u, win_h)
+    if win_h is not None:
+        win_h = max(win_h, p.min_height())
+        p.layout(800, 0, win_h)
+    vx, vy, vw, vh = p.viewport
+    for name in p.tabs:
+        p.set_tab(name)
+        p.scroll = 0
+        p._place_tabs()
+        head, foot = p.header, p.footer
+        for a, b in zip(head, head[1:]):
+            assert b.y >= a.y + a.height, (name, a.label)
+        assert head[-1].y + head[-1].height <= vy, name
+        for a, b in zip(p.tabs[name], p.tabs[name][1:]):
+            assert b.y >= a.y + a.height, (name, u, a.label, b.label)
+        assert foot[0].y >= vy + vh, (name, u)
+        for a, b in zip(foot, foot[1:]):
+            assert b.y >= a.y + a.height
+        last = foot[-1]
+        assert last.y + last.height <= p.height, (name, u)
+        for r in head + p.tabs[name] + foot:
+            assert r.x >= 800 and r.x + r.w <= 800 + p.width, (name, r.label)
+
+
+@pytest.mark.parametrize('u', SCALES)
+def test_natural_layout_fits_without_scrolling(u):
+    p = _scaled(u, None)
+    assert not p.scrollable()
+    for name in p.tabs:
+        p.set_tab(name)
+        assert p.scroll == 0 and p.max_scroll == 0
+
+
+@pytest.mark.parametrize('u', SCALES)
+def test_every_interactive_row_is_hit_by_its_centre_after_scrolling(u):
+    p = _scaled(u, 560)                   # short window: forces scrolling
+    p.layout(800, 0, max(560, p.min_height()))
+    assert p.scrollable()
+    get = _get_for(p)
+    vx, vy, vw, vh = p.viewport
+    for name in p.tabs:
+        p.set_tab(name)
+        for r in p.tabs[name]:
+            if not r.interactive:
+                continue
+            _scroll_to_show(p, r)
+            assert vy <= r.y and r.y + r.height <= vy + vh, (name, r.label)
+            cx = r.x + r.w // 2 + 1
+            if isinstance(r, ui.ButtonPair):
+                sx, sw = r._slot(0)
+                cx = sx + sw // 2
+            assert p.mouse_down((cx, r.y + r.height // 2), get) is not None, \
+                (name, u, r.label)
+            p.mouse_up()
+    for r in p.header + p.footer:         # fixed rows hit at any scroll
+        if r.interactive and not isinstance(r, ui.TabBar):
+            cx = r.x + r.w // 2 + 1
+            if isinstance(r, ui.ButtonPair):
+                sx, sw = r._slot(0)
+                cx = sx + sw // 2
+            assert p.mouse_down((cx, r.y + r.height // 2), get) is not None
+            p.mouse_up()
+
+
+@pytest.mark.parametrize('u', SCALES)
+def test_rows_clipped_out_of_the_viewport_cannot_be_clicked(u):
+    p = _scaled(u, 560)
+    p.layout(800, 0, max(560, p.min_height()))
+    p.set_tab('Swarm')
+    _, vy, _, vh = p.viewport
+    below = [r for r in p.tabs['Swarm'] if r.interactive and r.y > vy + vh]
+    assert below, 'a short window must hide some Swarm rows'
+    get = _get_for(p)
+    for r in below:
+        pos = (r.x + 40, r.y + r.height // 2)
+        got = p.mouse_down(pos, get)      # the footer may sit there, not r
+        assert got is None or got[0] == ui.ACTION, (r.label, got)
+        p.mouse_up()
+
+
+@pytest.mark.parametrize('u', SCALES)
+def test_wheel_scrolls_clamps_and_reaches_the_last_row(u):
+    p = _scaled(u, 560)
+    p.layout(800, 0, max(560, p.min_height()))
+    p.set_tab('Swarm')
+    over = (800 + 20, 400)
+    assert p.scroll == 0
+    assert p.wheel(over, +1) is True and p.scroll == 0   # up at top: stay
+    y0 = p.tabs['Swarm'][3].y
+    p.wheel(over, -1)                                    # down 1 notch
+    assert p.scroll > 0 and p.tabs['Swarm'][3].y == y0 - p.scroll
+    for _ in range(200):
+        p.wheel(over, -1)
+    assert p.scroll == p.max_scroll
+    _, vy, _, vh = p.viewport
+    last = p.tabs['Swarm'][-1]
+    assert last.y + last.height <= vy + vh               # fully visible
+    assert p.wheel((10, 400), -1) is False               # over the arena
+
+
+@pytest.mark.parametrize('u', SCALES)
+def test_switching_tab_resets_scroll_and_relayout_keeps_it_in_range(u):
+    p = _scaled(u, 560)
+    p.layout(800, 0, max(560, p.min_height()))
+    p.set_tab('Swarm')
+    for _ in range(50):
+        p.wheel((820, 400), -1)
+    assert p.scroll > 0
+    p.set_tab('Sensor')
+    assert p.scroll == 0
+    p.set_tab('Swarm')
+    for _ in range(50):
+        p.wheel((820, 400), -1)
+    p.layout(800, 0, 2000)                # window grew: nothing to scroll
+    assert p.scroll == 0 and not p.scrollable()
+
+
+def test_every_size_grows_with_the_scale():
+    sizes = {u: _scaled(u, None) for u in SCALES}
+    for a, b in zip(SCALES, SCALES[1:]):
+        pa, pb = sizes[a], sizes[b]
+        assert pb.width > pa.width and pb.height > pa.height
+        for ra, rb in zip(pa.header + pa.footer, pb.header + pb.footer):
+            assert rb.height > ra.height, (ra.label, a, b)
+        for name in pa.tabs:
+            for ra, rb in zip(pa.tabs[name], pb.tabs[name]):
+                assert rb.height > ra.height, (name, ra.label, a, b)
+
+
+def test_scale_is_clamped_to_1_to_2_5():
+    assert ui.clamp_scale(0.2) == 1.0
+    assert ui.clamp_scale(9) == 2.5
+    assert ui.clamp_scale('1.75') == 1.75
+    assert ui.clamp_scale('junk') == 1.5
+
+
+@pytest.mark.parametrize('u', SCALES)
+def test_mode_description_box_wraps_every_mode_text_without_truncation(u):
+    p = _scaled(u, None)
+    block = next(r for r in p.header if isinstance(r, ui.TextBlock))
+    measure = p.metrics
+    inner = p.width - 2 * p.pad
+    for text in sc.MODE_DESCRIPTIONS.values():
+        for ev in sc.ALL_EVADERS:
+            lines = ui.wrap_text(f'{text} Evader: {ev}.', inner, measure)
+            assert len(lines) <= block.lines, (u, ev, len(lines), block.lines)
+            assert not lines[-1].endswith('...')
+    assert block.height == block.lines * block.k(block.line_h) + block.k(2)
+
+
+def test_min_height_holds_header_footer_and_one_field():
+    for u in SCALES:
+        p = _scaled(u, None)
+        h = p.min_height()
+        p.layout(800, 0, h)
+        tallest = max(r.height for t in p.tabs.values() for r in t)
+        assert p.viewport[3] >= tallest
+
+
+# Real fonts (needs pygame; skipped in CI where it is absent).
+@pytest.mark.parametrize('u', SCALES)
+def test_real_fonts_labels_and_values_fit_their_rows(u):
+    import os
+    os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+    pg = pytest.importorskip('pygame')
+    pg.font.init()
+    fonts = ui.make_fonts(pg, u)
+    assert fonts['small'].get_height() >= 14 * u * 0.9      # really scaled
+    p = ui.build_panel(STRATS, ('hull', 'tag', 'escape_blocked'),
+                       sc.ALL_EVADERS, ENVS, int(360 * u), ui_scale=u)
+    p.set_metrics(lambda t: fonts['small'].size(t)[0])
+    p.layout(0, 0)
+    inner = p.width - 2 * p.pad
+    for name, rows in p.tabs.items():
+        for r in rows:
+            if isinstance(r, ui.Slider):
+                lab = fonts['small'].size(r.label)[0]
+                val = max(fonts['small'].size(r.format(v))[0]
+                          for v in (r.lo, r.hi))
+                tag = fonts['tiny'].size('pending')[0] + r.k(30) \
+                    if r.restart else 0
+                assert lab + tag + val + r.k(12) <= inner, (name, u, r.label)
+            elif isinstance(r, ui.Toggle):
+                assert fonts['small'].size(r.label)[0] + r.k(30) <= inner
+            elif isinstance(r, ui.Cycler):
+                tag = fonts['tiny'].size('pending')[0] + r.k(30) \
+                    if r.restart else 0
+                assert fonts['small'].size(r.label)[0] + tag <= inner
+                for o in r.options:
+                    assert fonts['body'].size(str(o))[0] \
+                        <= inner - 2 * r.k(r.ARROW_W), (name, o)
+    for r in p.header:
+        if isinstance(r, ui.ModeBar):
+            for i, (_, label) in enumerate(r.modes):
+                assert fonts['small'].size(label)[0] + 8 <= r._slot(i)[1]
+        if isinstance(r, ui.TabBar):
+            for i, n in enumerate(r.names):
+                assert fonts['small'].size(n)[0] + 6 <= r._slot(i)[1]
+    # draws every tab, scrolled and not, without raising
+    surf = pg.Surface((p.width + 800, 700))
+    p.layout(800, 0, 700 if 700 >= p.min_height() else p.min_height())
+    for name in p.tabs:
+        p.set_tab(name)
+        p.wheel((820, 300), -3)
+        p.draw(pg, surf, 800, 0, fonts, _get_for(p))

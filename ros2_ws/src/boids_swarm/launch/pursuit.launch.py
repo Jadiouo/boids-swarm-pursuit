@@ -27,6 +27,7 @@ def launch_setup(context):
                      'headless', 'trails', 'capture_mode', 'episodes_max',
                      'time_limit', 'stamina', 'obstacles', 'evader',
                      'perception', 'env', 'shrink_rate', 'ui',
+                     'ui_scale',
                      'screenshot_dir', 'screenshot_period', 'sharing_mode',
                      'shared_sighting_qos_depth', 'oracle_max_hops',
                      'relay_log_dir', 'time_scale', 'nav2_config', 'warmup',
@@ -74,6 +75,10 @@ def launch_setup(context):
     # window never closes. Headless and ui:=false keep launching everything
     # directly, exactly as before (experiment scripts depend on that).
     managed = ui_on and not headless
+    if managed:
+        # Window-only; omitted when headless / ui:=false so those launches
+        # stay byte-identical to the pre-ui_scale golden.
+        sim_extra['ui_scale'] = min(2.5, max(1.0, float(cfg['ui_scale'])))
     if managed and ui_default_evader:
         # Only the panel path defaults to the smart evader (when installed);
         # headless / ui:=false stay reactive for experiment reproducibility.
@@ -176,6 +181,11 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'ui', default_value='true',
             description='in-window control panel (M15); ignored if headless'),
+        DeclareLaunchArgument(
+            'ui_scale', default_value='1.5',
+            description='scale of every UI size (fonts, panel, HUD): '
+                        '1.0 = compact, 1.5 = default, up to 2.5 for '
+                        'hi-dpi / far-away screens'),
         DeclareLaunchArgument(
             'pursuer_delay', default_value='0.0',
             description='extra seconds the boids wait after the target '
