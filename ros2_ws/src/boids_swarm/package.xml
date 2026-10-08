@@ -14,12 +14,25 @@
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>rosgraph_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>boids_swarm_msgs</exec_depend>
   <!-- turtlesim dep is for turtlesim/msg/Pose only (SDD v3 §1.3) -->
   <exec_depend>turtlesim</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>python3-pygame</exec_depend>
+  <!-- M7 Nav2 spike (nav2_bridge + nav2_target.launch.py) -->
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>nav2_planner</exec_depend>
+  <exec_depend>nav2_controller</exec_depend>
+  <exec_depend>nav2_navfn_planner</exec_depend>
+  <exec_depend>nav2_mppi_controller</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
 
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
   <test_depend>python3-pytest</test_depend>
 
   <export>

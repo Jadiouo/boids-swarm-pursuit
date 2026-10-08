@@ -88,6 +88,42 @@ def compute_detections(observer, candidates, occluders, cfg, rng):
     return dets
 
 
+def target_measurement_world(observer, detection, *, stamp, sequence,
+                            episode_id, sender_id, range_sigma,
+                            bearing_sigma, sensor_range,
+                            valid_for_sec=0.6):
+    """Convert a direct noisy range/bearing sample into a world-frame ROS
+    message. This is a frame transform and noise-model covariance only; it
+    never reads target truth or performs tracking/fusion.
+    """
+    import math
+    from boids_swarm_msgs.msg import TargetSighting
+
+    ox, oy, theta = observer
+    measured_range, measured_bearing = detection[:2]
+    angle = theta + measured_bearing
+    c, s = math.cos(angle), math.sin(angle)
+    rs = range_sigma * measured_range
+    bs = bearing_sigma * (0.5 + 0.5 * measured_range / sensor_range)
+    radial_var, lateral_var = rs * rs, (measured_range * bs) ** 2
+    msg = TargetSighting()
+    msg.header.frame_id = 'world'
+    msg.header.stamp.sec = int(stamp)
+    msg.header.stamp.nanosec = int((stamp % 1.0) * 1e9)
+    msg.sender_id, msg.episode_id = sender_id, episode_id
+    msg.sequence, msg.target_id = sequence, 'target'
+    msg.sender_position.x, msg.sender_position.y = ox, oy
+    msg.target_position.x = ox + measured_range * c
+    msg.target_position.y = oy + measured_range * s
+    msg.covariance_xy = [c*c*radial_var+s*s*lateral_var,
+                         c*s*(radial_var-lateral_var),
+                         c*s*(radial_var-lateral_var),
+                         s*s*radial_var+c*c*lateral_var]
+    msg.confidence = 1.0
+    msg.valid_for_sec = valid_for_sec
+    return msg
+
+
 def relayed_detection(observer, target, cid, jitter, rng):
     """Build a target detection for a boid that heard the sighting over
     comms rather than seeing it (v4 A.6). Expressed in the receiver's own

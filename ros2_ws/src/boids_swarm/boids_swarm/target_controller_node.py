@@ -15,7 +15,8 @@ from std_msgs.msg import Float32MultiArray
 from turtlesim.msg import Pose
 
 from .geometry import to_twist
-from .behaviors.evasion import (AdaptiveEvader, Nav2Evader, ReactiveEvader)
+from .behaviors.evasion import AdaptiveEvader, ReactiveEvader
+from .behaviors.nav2_evader import Nav2Evader
 
 
 class TargetController(Node):
@@ -35,6 +36,19 @@ class TargetController(Node):
         # Sprint management (§4.2 stamina): sprint only when pursuers are
         # close, cruise at swarm speed otherwise so stamina regenerates.
         self.declare_parameter('panic_distance', 6.0)
+        self.declare_parameter('seed', 7)
+        # Nav2 evader (M7). Read live by Nav2Evader via node parameters.
+        self.declare_parameter('nav2_goal_period', 0.75)    # s between goal picks
+        self.declare_parameter('nav2_replan_period', 2.0)   # s, re-plan same goal
+        self.declare_parameter('nav2_reactive_radius', 4.0)  # blend starts here
+        self.declare_parameter('nav2_reactive_min', 1.5)     # pure reactive inside
+        self.declare_parameter('nav2_cmd_timeout', 0.3)     # stale nav2 cmd -> reactive
+        self.declare_parameter('nav2_fallback_hold', 1.0)   # s reactive after failure
+        self.declare_parameter('nav2_plan_timeout', 2.0)
+        self.declare_parameter('nav2_blacklist_ttl', 6.0)   # s a failed goal stays banned
+        self.declare_parameter('nav2_blacklist_radius', 1.0)
+        # same value the sim collides with and Nav2's costmaps use
+        self.declare_parameter('target_body_radius', 0.7)
 
         flat = [float(v) for v in self.get_parameter('obstacles').value]
         obstacles = [tuple(flat[i:i + 3])
@@ -83,11 +97,19 @@ class TargetController(Node):
             raise RuntimeError(
                 f"unknown evader '{kind}'; expected one of "
                 f"{'|'.join(self.BRAINS)}")
+        if self.brain is not None and hasattr(self.brain, 'close'):
+            self.brain.close()              # Nav2Evader: stop its goal loop
         bmin = self.brain.bmin if self.brain is not None \
             else self.get_parameter('bounds_min').value
         bmax = self.brain.bmax if self.brain is not None \
             else self.get_parameter('bounds_max').value
-        self.brain = self.BRAINS[kind](bmin, bmax, self._obstacles)
+        if kind == 'nav2':
+            # needs ROS (action clients / topics): hand it the node
+            self.brain = Nav2Evader(
+                bmin, bmax, self._obstacles, node=self,
+                body_radius=self.get_parameter('target_body_radius').value)
+        else:
+            self.brain = self.BRAINS[kind](bmin, bmax, self._obstacles)
         self.kind = kind
         self._last_mode = None
 
@@ -158,6 +180,14 @@ class TargetController(Node):
                               w_max=self.get_parameter(
                                   'target_omega_max').value,
                               last_w=self._last_w)
+        blend = getattr(self.brain, 'blend_twist', None)
+        if blend is not None:                 # Nav2Evader: mix in Nav2's cmd
+            v_lin, w_z = blend(
+                (v_lin, w_z), speed,
+                self.get_parameter('target_omega_max').value,
+                theta=theta, reactive_heading=math.atan2(uy, ux)
+                if math.hypot(ux, uy) > 1e-6 else None,
+                last_w=self._last_w)
         self._last_w = w_z
         twist = Twist()
         twist.linear.x = v_lin

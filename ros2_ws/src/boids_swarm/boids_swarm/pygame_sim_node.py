@@ -18,7 +18,10 @@ from rclpy.node import Node
 from rcl_interfaces.msg import SetParametersResult
 from geometry_msgs.msg import Twist
 from rosgraph_msgs.msg import Clock
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, String
+from boids_swarm_msgs.msg import EpisodeState, TargetSighting
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+import json
 from turtlesim.msg import Pose
 
 from .geometry import clamp, wrap_angle
@@ -118,6 +121,11 @@ class PygameSimNode(Node):
         self.declare_parameter('comms_enabled', True)
         self.declare_parameter('comm_range', 8.0)
         self.declare_parameter('comm_jitter', 0.15)        # relay noise
+        self.declare_parameter('sharing_mode', 'legacy')
+        self.declare_parameter('radio_range', 8.0)
+        self.declare_parameter('oracle_max_hops', 0)   # 0 = unlimited
+        self.declare_parameter('relay_log_dir', '')
+        self.declare_parameter('sighting_valid_for_sec', 0.6)
         # --- in-window control panel (v5 M15) ---
         self.declare_parameter('ui_enabled', True)
         self.declare_parameter('panel_px', 280)
@@ -200,6 +208,7 @@ class PygameSimNode(Node):
         # with use_sim_time) stay in step even when headless fast-forward
         # runs physics much faster than wall time (§7.4).
         self.sim_time = 0.0
+        self._episode_generation = 0
         self.clock_pub = self.create_publisher(Clock, '/clock', 10)
         # Aggregated swarm poses on ONE topic (v2 §10.2 scaling option):
         # N controllers x 1 subscription instead of N x N. Layout:
@@ -214,6 +223,15 @@ class PygameSimNode(Node):
         # subscribes to only its own — fewer subs than the broadcast AND
         # realistic. Published only in 'sensor' mode.
         self.perception_mode = self.get_parameter('perception_mode').value
+        epoch_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                               durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.episode_pub = self.create_publisher(EpisodeState,
+            '/simulation/episode_state', epoch_qos)
+        self.observation_pub = self.create_publisher(String,
+            '/swarm/observations', 10)
+        self.sighting_pubs = [self.create_publisher(TargetSighting,
+            f'/agent{i}/local_target_sighting', 10) for i in range(self.n)]
+        self.sighting_sequences = [1] * self.n
         self.det_pubs = [
             self.create_publisher(Float32MultiArray, f'/agent{i}/detections',
                                   10)
@@ -248,6 +266,7 @@ class PygameSimNode(Node):
 
         self._spawn_all()
         self.score.start_episode()
+        self._publish_episode_state()
         self.get_logger().info(
             f'world up: N={self.n}, {self.world}x{self.world}, '
             f'model={self.motion_model}, target={self.target_enabled} '
@@ -326,6 +345,16 @@ class PygameSimNode(Node):
             t.trail.clear()
             self.stamina = 1.0
             self.tag_hp.reset()
+
+    def _publish_episode_state(self):
+        msg = EpisodeState()
+        msg.header.frame_id = 'world'
+        msg.header.stamp.sec = int(self.sim_time)
+        msg.header.stamp.nanosec = int((self.sim_time % 1.0) * 1e9)
+        self._episode_generation += 1
+        msg.episode_id = self._episode_generation
+        self.episode_pub.publish(msg)
+        self.sighting_sequences = [1] * self.n
 
     # --------------------------------------------------------------- physics
     def _integrate(self, ent: Entity, dt, v_max, w_max):
@@ -453,6 +482,7 @@ class PygameSimNode(Node):
                 if self._p('auto_reset') and not done:
                     self._spawn_all()
                     self.score.start_episode()
+                    self._publish_episode_state()
                     self.state = 'running'
                 else:
                     # Either the requested episode count is complete, or
@@ -555,10 +585,36 @@ class PygameSimNode(Node):
             'emit_ids': self._p('emit_ids'),
         }
 
+    def _log_expected_receivers(self, i, sighting):
+        """Phase 2 R-03: per-sighting set of agents inside radio_range of
+        the sender at publish time (the per-receiver loss denominator).
+        Written to a file (not a topic) so it cannot itself be lost."""
+        if self._p('sharing_mode') != 'ros':
+            return
+        log_dir = self._p('relay_log_dir')
+        if not log_dir:
+            return
+        if getattr(self, '_expected_log', None) is None:
+            os.makedirs(log_dir, exist_ok=True)
+            self._expected_log = open(
+                os.path.join(log_dir, 'expected_receivers.jsonl'), 'a',
+                buffering=1)
+        positions = [(a.x, a.y) for a in self.agents]
+        expected = comms.receivers_in_range(
+            positions, i, self._p('radio_range'))
+        self._expected_log.write(json.dumps(
+            {'k': [int(sighting.episode_id), sighting.sender_id,
+                   int(sighting.sequence)],
+             't': self.sim_time,
+             'exp': [f'agent{j}' for j in expected]}) + '\n')
+
     def _publish_detections(self):
         """Synthesize each agent's own detection stream (v4 A.2), then
         relay target sightings over the comm mesh (v4 A.6)."""
         cfg = self._sensor_cfg()
+        mode = self._p('sharing_mode')
+        if mode == 'legacy':
+            mode = 'oracle' if self._p('comms_enabled') else 'off'
         body_r = self._p('agent_body_radius')
         # candidate id convention: 0..N-1 agents, N = target.
         base = [(i, a.x, a.y, a.theta, a.v, False)
@@ -583,14 +639,37 @@ class PygameSimNode(Node):
                 observer, cands, occluders, cfg, self.percept_rng)
             per_agent.append(dets)
             seers[i] = any(d[4] >= 0.5 for d in dets)   # saw the target?
+            target_det = next((d for d in dets if d[4] >= 0.5), None)
+            if target_det is not None:
+                sighting = perception.target_measurement_world(
+                    observer, target_det, stamp=self.sim_time,
+                    sequence=self.sighting_sequences[i],
+                    episode_id=self._episode_generation, sender_id=f'agent{i}',
+                    range_sigma=cfg['range_sigma'],
+                    bearing_sigma=cfg['bearing_sigma'],
+                    sensor_range=cfg['sensor_range'],
+                    valid_for_sec=self._p('sighting_valid_for_sec'))
+                self.sighting_sequences[i] += 1
+                self.sighting_pubs[i].publish(sighting)
+                self._log_expected_receivers(i, sighting)
+                record = {'episode_id': sighting.episode_id,
+                          'sender_id': sighting.sender_id,
+                          'sequence': sighting.sequence, 'stamp': self.sim_time,
+                          'raw_range': target_det[0],
+                          'raw_bearing': target_det[1],
+                          'target_position': [sighting.target_position.x,
+                                              sighting.target_position.y],
+                          'sender_position': [a.x, a.y],
+                          'covariance_xy': list(sighting.covariance_xy)}
+                self.observation_pub.publish(String(data=json.dumps(record)))
 
         # pass 2: mesh relay — informed agents that did NOT see the target
         # directly get a relayed sighting in their own frame.
-        if (self.target_enabled and self._p('comms_enabled')
-                and any(seers)):
+        if (mode == 'oracle' and self.target_enabled and any(seers)):
             positions = [(a.x, a.y) for a in self.agents]
             informed = comms.propagate_sightings(
-                positions, self._p('comm_range'), seers)
+                positions, self._p('comm_range'), seers,
+                max_hops=int(self._p('oracle_max_hops')))
             jitter = self._p('comm_jitter')
             tgt = (self.target.x, self.target.y, self.target.theta,
                    self.target.v)
@@ -601,6 +680,8 @@ class PygameSimNode(Node):
                         self.percept_rng))
 
         for i in range(self.n):
+            if mode == 'ros':
+                per_agent[i] = [d for d in per_agent[i] if d[4] < 0.5]
             msg = Float32MultiArray()
             msg.data = perception.detections_to_flat(per_agent[i])
             self.det_pubs[i].publish(msg)
@@ -674,6 +755,7 @@ class PygameSimNode(Node):
                 # counting a new one, so the panel can't inflate the score.
                 self._spawn_all()
                 self.score.restart_episode()
+                self._publish_episode_state()
                 self.state = 'running'
             return
         self.bridge.request(scope, key, value)

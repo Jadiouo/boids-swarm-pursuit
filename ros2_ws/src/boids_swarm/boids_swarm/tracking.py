@@ -17,6 +17,12 @@ Pure math, no ROS — unit-tested (v4 E.2).
 import math
 
 
+def target_state_from_track(track, observation_stamp):
+    """Return filtered motion with the original source stamp for freshness."""
+    return (track.x, track.y, track.heading, track.speed,
+            observation_stamp)
+
+
 class Track:
     __slots__ = ('x', 'y', 'vx', 'vy', 't', 'tid', 'is_target',
                  'hits', 'last_seen')
@@ -123,6 +129,26 @@ class Tracker:
         # keep the freshest target track if several (id churn under dropout)
         target = max(targets, key=lambda tr: tr.last_seen) if targets else None
         return neighbors, target
+
+    def clear(self):
+        """Discard all tracks at a simulator-authoritative episode reset."""
+        self.tracks.clear()
+        self._next_key = 0
+
+    def observe_target(self, x, y, observation_time):
+        """Apply one selected raw target observation at its source time."""
+        key = ('target', 0)
+        track = self.tracks.get(key)
+        if track is None or observation_time <= track.last_seen:
+            if track is None:
+                track = Track(x, y, observation_time, 0, True)
+                self.tracks[key] = track
+            return track
+        track.update(x, y, observation_time, self.alpha, self.beta)
+        return track
+
+    def forget_target(self):
+        self.tracks.pop(('target', 0), None)
 
 
 class CirclingDetector:

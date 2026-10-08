@@ -23,7 +23,8 @@ turns badly (`target_omega_max` is the balance knob).
 |---|---|---|
 | `pygame_sim` | 1 | **The world**: physics, collisions, capture, rendering, HUD, pose/`/clock` publishing |
 | `boid_controller` | N | Per-agent flocking + pursuit (namespace `/agent0..N-1`) |
-| `target_controller` | 1 | The evader (`ReactiveEvader` / `AdaptiveEvader`; `Nav2Evader` = M7 stretch) |
+| `target_controller` | 1 | The evader (`ReactiveEvader` / `AdaptiveEvader` / `Nav2Evader`, M7) |
+| `nav2_bridge` | 1 | M7 only: `/target/odom`, TF, `/map`, boid PointCloud2 for Nav2 |
 
 Controllers talk to the world only via topics: `/swarm/poses`
 (aggregated, one subscription per controller — the v2 §10.2 scaling fix),
@@ -113,7 +114,7 @@ Every parameter is runtime-reconfigurable:
 ```bash
 ros2 param set /agent3/boid_controller pursuit_strategy herd
 ros2 param set /pygame_sim render_trails true
-ros2 param set /pygame_sim screenshot_dir /tmp/shots   # periodic PNGs
+ros2 param set /pygame_sim screenshot_dir out/shots   # periodic PNGs
 ```
 
 Defaults: [config/params.yaml](config/params.yaml).
@@ -189,10 +190,10 @@ swarm* tracks a target most individuals can't see.
 (wall-anchored cordon), `role_encircle` (asymmetric collapse), `bait`
 (M12).
 
-**`auto` (the default): decentralized strategy selection.** Every boid
+**`auto` (the default): per-boid strategy selection.** Every boid
 picks its own tactic each cycle from the shared belief — `blockade` when
 the target circles the perimeter, `corner_trap` when it's pinned near a
-corner, `encircle` in the open — so the swarm adapts with no coordinator.
+corner, `encircle` in the open — so the swarm adapts with no coordinator node (beliefs still come from simulator-synthesized sensing).
 
 **Terminal commit (kills the orbit).** Ring/lead tactics offset their aim
 from the target, so a boid that gets close used to *circle* it instead of
@@ -241,14 +242,165 @@ Everything is gated behind toggles (`perception_mode`, `env`, `evader`,
 M0–M6 implemented and verified (M2 metrics: min pairwise ≈ 0.7–1.4, heading
 variance → 0.03–0.08, bbox 184→17; M3+: episodes/score/HUD live; strategy
 A/B via seeded headless benchmarks; M6: obstacles render/block, human mode
-drives the target with arrow keys). M7 (`Nav2Evader`) is a stub with the
-§6.4 plumbing contract documented — Nav2 packages are installed and the sim
-already owns the world state needed to publish odom/TF/map (the v4 adaptive
-target's retreat-to-open behavior is the job that finally justifies it).
+drives the target with arrow keys). M7 (`Nav2Evader`) is implemented — see
+[Nav2 evader (M7)](#nav2-evader-m7) below.
+
+## Nav2 evader (M7)
+
+`evader:=nav2` replaces the target's brain with a Nav2-planned one. The
+launch also starts the Nav2 stack for the target (planner + controller +
+`nav2_bridge`); `evader:=reactive` (default) is unchanged and does not start
+Nav2.
+
+```
+ pygame_sim ──/target/pose──► nav2_bridge ──► /map (static circles + walls)
+     │  │                          │         TF map→odom→base_link, /target/odom
+     │  └─/swarm/poses─────────────┴──────► /boids_cloud (PointCloud2)
+     │                                          │ obstacle layer (local+global)
+     │                       ┌──────────────────▼─────────────────┐
+     │                       │ planner_server (navfn A*)          │
+     │                       │ controller_server (RPP; MPPI opt.)│
+     │                       └──▲──────────────────────┬──────────┘
+     │        ComputePathToPose │ / FollowPath         │ /target/nav2_cmd_vel
+     │                          │                      ▼
+     │              ┌───────────┴───────────────────────────────┐
+     └─/swarm/poses─► target_controller (Nav2Evader)            │
+                    │  every 0.75 s: sample free-space goals,    │
+                    │  score (boid dist, openness, crossing,     │
+                    │  grid reachability / arrival lead / pocket)│
+                    │  plan + FollowPath (preempts old goal)     │
+                    │  every 33 ms: heading-space blend of       │
+                    │  (nav2 cmd, ReactiveEvader)                │
+                    └───────────────────┬───────────────────────┘
+                                        ▼  /target/cmd_vel  (sole publisher)
+                          /target/evader_status  (JSON: mode, counters)
+```
+
+```bash
+ros2 launch boids_swarm pursuit.launch.py evader:=nav2 env:=obstacle_field \
+    num_agents:=12 strategy:=intercept headless:=true ui:=false \
+    time_scale:=1.0 warmup:=8.0      # Nav2 runs on wall-clock CPU; see limits
+ros2 topic echo /target/evader_status   # mode=nav2|blend|reactive + counters
+```
+
+**Goal choice.** 64 free-space candidates are scored by distance from the
+nearest boid, openness, a penalty for passing boids on the way, and (with an
+`EscapeMap`, a Python copy of the occupancy + inflation grid, ~13 ms per
+decision) three grid terms: candidates the target cannot reach are dropped;
+the *arrival lead* (the nearest boid's travel distance minus 0.6 x the
+target's, both by geodesic distance, so a wall between them counts) rewards
+goals the target reaches first; and for the 8 best candidates a *pocket
+penalty* (floor left to keep fleeing beyond the goal, plus clearance) demotes
+dead ends. These are heuristics with unit tests, not a proof of
+self-trapping avoidance (see limits).
+
+**Blend.** `w_reactive` rises linearly from 0 at `nav2_reactive_radius` to 1
+at `nav2_reactive_min` (nearest boid distance). The two sources are mixed as
+**velocity vectors** (Nav2's heading = the chord of its arc over 1 s,
+reactive's = its desired heading) and converted back to `(v, ω)` with the
+same non-holonomic law as the boids; if the vectors cancel (head-on conflict)
+the reactive heading wins. Averaging `(v, ω)` directly, as before, let
+opposite turns cancel into driving straight. Endpoints are the pure sources.
+`mode` is `nav2` (w=0), `blend` (0<w<1) or `reactive` (w=1, *or* Nav2
+unavailable: stale command, server not ready, or inside the post-failure
+hold).
+
+**Failure handling.** A failed plan, a timed-out plan (cancelled; its late
+result is ignored via a sequence number) or a `FollowPath` abort is counted
+(`plan_fail`, `plan_timeout`, `follow_abort`), puts the evader in pure
+reactive control for `nav2_fallback_hold` seconds **without sending new
+plans**, blacklists the goal for `nav2_blacklist_ttl` seconds (doubling on
+repeats) within `nav2_blacklist_radius`, and drops it so the next pick is a
+different goal. A preempted `FollowPath` (new goal) is not an abort.
+
+**Parameters** (all on `target_controller`, `ros2 param set` works):
+`nav2_goal_period` 0.75 s, `nav2_replan_period` 2.0 s,
+`nav2_reactive_radius` 4.0 m, `nav2_reactive_min` 1.5 m,
+`nav2_cmd_timeout` 0.3 s, `nav2_fallback_hold` 1.0 s, `nav2_plan_timeout`
+2.0 s, `nav2_blacklist_ttl` 6 s, `nav2_blacklist_radius` 1 m. Speed/turn
+limits and the costmap footprint are **derived**, never hard-coded:
+`v_max = agent_max_speed × target_speed_multiplier` (3.6 m/s as shipped),
+`ω_max = target_omega_max` (1.2), costmap `robot_radius =
+target_body_radius` (0.15); `nav2_target.launch.py` overrides the
+controller's limits and both costmaps from `params.yaml`. `target_controller`
+caps the Nav2 command at the same sprint/cruise speed it uses for the
+reactive evader: **2.0 m/s unless a boid is within `panic_distance` (6 m),
+then 3.6 m/s** (stamina design), so in-game speed is mostly 2.0 and the
+tuning harness's 2.2-3.2 m/s cruise numbers are controller capability, not
+game speed.
+
+**Obstacles.** One flat list is built in `pursuit.launch.py`
+(`launch_util.obstacles_for_env`) and handed to the sim, the controllers and
+(as an exactly round-tripping string) to the bridge; `ros_test` checks they
+agree. Boids enter both costmaps through the obstacle layer
+(`/boids_cloud`, ring of points per boid).
+
+**Tuning, tests, evidence.** `docs/testing/nav2-mppi-tuning.md` (every
+controller attempt, including failures), `ros_test/test_nav2_ros_integration.py`
+(map/TF/odom on `/clock`; boids in the local **and** global costmap sampled at
+the costmap's own stamp, with a negative control; obstacle course with no
+boids; pocket / wall-hugging starts plan; evader fallback, blacklist and
+preempt behaviour on a real Nav2 stack; launch obstacle sync), `artifacts/nav2-m7-sanity/` (small sanity
+benchmark — **not** a pre-registered comparison).
+
+**Controller.** RegulatedPurePursuit (default) won the no-boid tuning on
+measured speed: 2.5-3.2 m/s cruise on the no-boid test courses (no
+obstacle contact, no stall), 2.2 m/s in the `obstacle_field` maze (turn-rate
+bound, inference); MPPI never exceeded
+~3.0 cruise / 1.9 incl. startup. MPPI stays available:
+`nav2_config:=nav2_target_mppi.yaml`. Full table and failed attempts in
+`docs/testing/nav2-mppi-tuning.md`.
+
+**Known limits.**
+- RPP runs with `use_collision_detection: false` and
+  `use_cost_regulated_linear_velocity_scaling: false`. Re-enabling detection
+  was tried on the corrected footprint and made the maze and wall-start
+  chains abort (61 "collision ahead"; data in
+  `docs/testing/nav2-mppi-tuning.md`). Consequences: the local costmap has
+  **no effect on the command**; a boid in RPP's arc is handled only by
+  global replanning (2 Hz costmap update, plan period 0.75-2 s) and the
+  reactive blend, so Nav2 itself is not a fast obstacle avoider.
+- At 0.1 m resolution a body touching an obstacle is often an inscribed
+  cell; the planner start is moved to the nearest traversable cell, and
+  paths may graze obstacles (one maze chain came within 0.01 m).
+- The target must pivot at `target_omega_max` (1.2 rad/s) before moving along
+  a path that starts behind it (up to ~2.6 s); tight corners cap speed at
+  ≈ ω_max·R.
+- Nav2 runs in wall-clock CPU: use `time_scale:=1.0`; at the sim's default 4×
+  the planner/controller cannot keep up. Activation takes ~5 s, so use
+  `warmup:=` in benchmarks (until then the target is purely reactive). The
+  first plan after activation can exceed `nav2_plan_timeout` (counted as a
+  plan failure, its late result is dropped).
+- The goal scorer's reachability / lead / pocket terms are heuristics on a
+  static grid (obstacles + walls, bounds rebuilt if they change); pursuers
+  are not predicted, so "arrives first" assumes they head straight for the
+  goal at 0.6x the target's speed.
+- Blend `reactive_radius` 4 m means the target is mostly *not* in pure Nav2
+  mode against a 12-boid swarm (see the sanity README for time-weighted
+  shares).
+- The static map is circular obstacles + walls; shrinking arenas
+  (`env:=shrink`) change the evader's grid but not Nav2's `/map`.
+- Running `test_nav2_ros_integration.py` and `test_sighting_ros_integration.py`
+  in **one** pytest process fails (`rclpy` is initialised twice) and can leak
+  `boid_controller` processes into the ROS domain; run them separately.
+
+## M7 acceptance status
+
+SDD v3 M7: *"Target navigates via Nav2, routes around obstacles toward open
+space, avoids self-trapping; boids appear as dynamic obstacles in its
+costmap."*
+
+| clause | status | evidence |
+|---|---|---|
+| navigates via Nav2 | **achieved, but Nav2 is a minority of the control time** | plan + FollowPath integration tests; in the sanity runs pure `nav2` mode is 9-22 % of the time, `blend` ~37 %, `reactive` 42-54 % (time-weighted) |
+| routes around obstacles | **achieved with no boids; not with boids** | no-boid course test (no obstacle touch) and tuning harness; the controller itself does not avoid boids (collision detection stays off) |
+| toward open space | **partial** | the goal scorer uses distance, openness, geodesic arrival lead on the grid (unit-tested); there is no measurement that its goals are safer than the old scorer |
+| avoids self-trapping | **not achieved / not demonstrated** | the specific pocket-start plan failure is fixed and tested, the scorer rejects unreachable goals and penalises dead ends in unit tests, but sanity repeat 2 seed 6 shows the target standing in the wall pocket for ~23 s with 15 plan failures (inference: boids at the exit) |
+| boids appear as dynamic obstacles in its costmap | **achieved** | integration test: boid cells are lethal in the local and global costmap at the costmap's own stamp, and absent after an empty cloud + costmap clear |
 
 ## Tests
 
-135 pure-math unit tests — no ROS, no pygame, runnable straight from a fresh
+204 pure-math unit tests in `boids_swarm/test` (223 with `boids_turtlesim`) — no ROS, no pygame, runnable straight from a fresh
 clone (`ros2_ws/pytest.ini` puts both packages on the path):
 
 ```bash
@@ -257,4 +409,30 @@ cd ros2_ws && python3 -m pytest -q
 
 Coverage: flocking, capture geometry, pursuit strategies (v3 + M11 + M12),
 perception (FOV/occlusion/noise/dropout/round-trip), tracking (alpha-beta/
-association/circling), comms mesh, world generation, adaptive evader.
+association/circling), comms mesh, world generation, adaptive evader,
+Nav2 evader decision logic (escape-goal scoring, grid reachability/lead/pocket,
+heading-space blend, goal blacklist and plan sequencing, arena wall/footprint
+cost model, planner start, launch obstacle sync).
+
+M7 integration (needs a built workspace, pygame on `PYTHONPATH`, 12 tests, ~70 s,
+run on its own, not together with the sighting integration file):
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ROS_DOMAIN_ID=210 \\
+  python3 -m pytest -q src/boids_swarm/ros_test/test_nav2_ros_integration.py
+```
+
+## One-hop ROS sighting relay (phase 1)
+
+See the repository root README for mode semantics, limitations, bounded experiment evidence, and the run procedure. Build the message and application packages with the Jazzy Python interpreter explicitly selected:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd ros2_ws
+colcon build --symlink-install --packages-up-to boids_swarm --base-paths src --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
+source install/setup.bash
+```
+
+Headless pygame launches need pygame importable by `/usr/bin/python3` (`sudo apt install python3-pygame`, or `pip install --user --break-system-packages pygame`); the installed ROS scripts use that interpreter. Run pure tests from `ros2_ws` with `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q`; run the real-process ROS suite separately from the same workspace using `python3 -m pytest src/boids_swarm/ros_test -q` (both integration files share one pytest process via `ros_test/conftest.py`).
+
+Final run-by-run evidence and collector limitations are recorded at `artifacts/sighting-relay-final-2026-10-07/README.md`.

@@ -4,8 +4,9 @@ import math
 
 import pytest
 
-from boids_swarm.tracking import Track, Tracker
+from boids_swarm.tracking import Track, Tracker, target_state_from_track
 from boids_swarm.behaviors import flocking
+from boids_swarm.behaviors.pursuit import PursuitContext, STRATEGIES
 
 
 # --- alpha-beta filter ------------------------------------------------------
@@ -39,6 +40,26 @@ def test_track_smooths_noise():
         if k > 20:
             err.append(abs(tr.x - true_x))
     assert sum(err) / len(err) < 0.25         # smoother than raw sigma 0.3
+
+
+def test_relay_track_motion_changes_intercept_and_keeps_observation_stamp():
+    tk = Tracker(alpha=0.5, beta=0.12)
+    tk.observe_target(10.0, 10.0, 1.0)
+    track = tk.observe_target(10.0, 12.0, 2.0)
+    x, y, heading, speed, stamp = target_state_from_track(track, 2.0)
+    assert speed > 0.0
+    assert heading == pytest.approx(math.pi / 2, abs=0.02)
+    assert stamp == 2.0
+
+    base = dict(self_xy=(5.0, 10.0), self_theta=0.0, index=0,
+                n_agents=2, target_xy=(x, y), t_engaged=1.0)
+    moving = PursuitContext(**base, target_theta=heading,
+                            target_speed=speed)
+    stationary = PursuitContext(**base, target_theta=0.0, target_speed=0.0)
+    params = {'lead_time': 1.0, 'agent_max_speed': 2.0,
+              'bounds_min': [0.0, 0.0], 'bounds_max': [20.0, 20.0]}
+    assert STRATEGIES['intercept'](moving, params)[1] > \
+        STRATEGIES['intercept'](stationary, params)[1]
 
 
 # --- data association --------------------------------------------------------

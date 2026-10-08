@@ -68,3 +68,68 @@ def test_relayed_detection_reconstructs_target_world_pos():
     _, tgt = perc.flat_to_world(flat, observer)
     assert tgt is not None
     assert (tgt[0], tgt[1]) == pytest.approx((8.0, 7.0), abs=1e-6)
+
+
+# --- phase 2 R-02: oracle_max_hops ------------------------------------------
+
+def test_max_hops_zero_keeps_multihop_behavior():
+    # A-B-C chain, 3 apart, range 4: A sees it, hops=0 (unlimited) informs C
+    pos = [(0, 0), (3, 0), (6, 0)]
+    assert comms.propagate_sightings(pos, 4.0, [True, False, False],
+                                     max_hops=0) == [True, True, True]
+
+def test_max_hops_one_stops_at_direct_neighbors():
+    pos = [(0, 0), (3, 0), (6, 0)]
+    informed = comms.propagate_sightings(pos, 4.0, [True, False, False],
+                                         max_hops=1)
+    assert informed == [True, True, False]      # C is two hops from A
+
+def test_max_hops_two_reaches_second_neighbor():
+    pos = [(0, 0), (3, 0), (6, 0), (9, 0)]
+    informed = comms.propagate_sightings(pos, 4.0, [True, False, False, False],
+                                         max_hops=2)
+    assert informed == [True, True, True, False]
+
+def test_max_hops_default_is_unlimited():
+    pos = [(0, 0), (3, 0), (6, 0)]
+    assert comms.propagate_sightings(pos, 4.0, [True, False, False]) == \
+        [True, True, True]
+
+def test_max_hops_one_uses_any_seer_as_source():
+    pos = [(0, 0), (3, 0), (6, 0)]
+    informed = comms.propagate_sightings(pos, 4.0, [True, False, True],
+                                         max_hops=1)
+    assert informed == [True, True, True]
+
+def test_max_hops_one_no_seer_informs_nobody():
+    pos = [(0, 0), (3, 0)]
+    assert comms.propagate_sightings(pos, 4.0, [False, False],
+                                     max_hops=1) == [False, False]
+
+def test_range_boundary_is_inclusive_everywhere():
+    # Exactly at range counts as a link/in range ('<='), consistently in the
+    # component graph, the hop-limited BFS and receivers_in_range, and
+    # matching the controller receiver gate (distance > radio_range = out).
+    pos = [(0, 0), (4, 0)]
+    assert comms.propagate_sightings(pos, 4.0, [True, False],
+                                     max_hops=1) == [True, True]
+    assert comms.propagate_sightings(pos, 4.0, [True, False]) == [True, True]
+    assert comms.receivers_in_range(pos, 0, 4.0) == [1]
+    # and just outside is not
+    pos = [(0, 0), (4.0001, 0)]
+    assert comms.propagate_sightings(pos, 4.0, [True, False],
+                                     max_hops=1) == [True, False]
+    assert comms.propagate_sightings(pos, 4.0, [True, False]) == [True, False]
+    assert comms.receivers_in_range(pos, 0, 4.0) == []
+
+
+# --- phase 2 R-03: expected receivers (sim-side denominator) -----------------
+
+def test_receivers_in_range_excludes_sender_and_far_agents():
+    pos = [(0, 0), (3, 0), (8, 0), (20, 0)]
+    assert comms.receivers_in_range(pos, 0, 8.0) == [1, 2]   # 8.0 inclusive
+
+def test_receivers_in_range_is_per_sender():
+    pos = [(0, 0), (3, 0), (8, 0)]
+    assert comms.receivers_in_range(pos, 2, 4.9) == []
+    assert comms.receivers_in_range(pos, 1, 5.0) == [0, 2]

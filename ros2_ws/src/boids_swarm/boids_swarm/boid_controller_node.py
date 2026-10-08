@@ -8,18 +8,27 @@ timer); pursuit tactics are strategy objects picked by parameter (§7.2).
 import math
 import random
 import re
+import json
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 from rcl_interfaces.msg import SetParametersResult
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import String
 from turtlesim.msg import Pose
+from boids_swarm_msgs.msg import EpisodeState, TargetSighting
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 
 from .geometry import to_twist, wrap_angle
 from .behaviors import flocking
 from .behaviors.pursuit import STRATEGIES, PursuitContext, terminal_commit
 from . import perception
-from .tracking import Tracker, CirclingDetector
+from .tracking import (Tracker, CirclingDetector,
+                       target_state_from_track)
+from .sighting_protocol import SightingRecord, validate_sighting
+from .sighting_runtime import (ObservationInbox, SightingCounters,
+                               shared_sighting_qos_spec)
 
 TELEPORT_JUMP = 3.0        # target jump > this ⇒ episode reset ⇒ re-engage
 
@@ -30,6 +39,13 @@ class CachedPose:
     def __init__(self, x, y, theta, v, w, stamp):
         self.x, self.y, self.theta, self.v, self.w = x, y, theta, v, w
         self.stamp = stamp
+
+
+def target_pose_from_track(track, observation_stamp):
+    """Expose filtered target motion while retaining source-time freshness."""
+    x, y, heading, speed, stamp = target_state_from_track(
+        track, observation_stamp)
+    return CachedPose(x, y, heading, speed, 0.0, stamp)
 
 
 class BoidController(Node):
@@ -85,6 +101,13 @@ class BoidController(Node):
         self.declare_parameter('w_search', 1.0)
         self.declare_parameter('search_enabled', True)
         self.declare_parameter('world_size', 20.0)
+        self.declare_parameter('sharing_mode', 'legacy')
+        self.declare_parameter('radio_range', 8.0)
+        self.declare_parameter('shared_sighting_qos_depth', 10)
+        self.declare_parameter('relay_log_dir', '')
+        self.declare_parameter('radio_pose_time_tolerance', 0.15)
+        self.declare_parameter('sighting_timeout', 0.6)
+        self.declare_parameter('future_stamp_tolerance', 0.02)
         self.add_on_set_parameters_callback(self._on_params)
         self._dbg_next = 0.0
         self._v_filt = (0.0, 0.0)
@@ -108,18 +131,73 @@ class BoidController(Node):
 
         self.target_enabled = bool(self.get_parameter('target_enabled').value)
         self.perception_mode = self.get_parameter('perception_mode').value
+        self.sharing_mode = self.get_parameter('sharing_mode').value
+        self._episode_id = None
+        self._inbox = ObservationInbox(
+            self_id=self.ns, expected_episode=None,
+            sighting_timeout=self._p('sighting_timeout'),
+            future_tolerance=self._p('future_stamp_tolerance'),
+            max_valid_for=2.0)
+        self._status_seq = 0
+        self._last_track_mode = 'search'
+        self._target_valid_until = float('-inf')
+        self._last_applied_candidate = None
+        self._last_control_clock = None
+        self.track_status_pub = None
+        self.shared_sighting_qos_depth = shared_sighting_qos_spec(
+            self.get_parameter('shared_sighting_qos_depth').value)['depth']
+        self.shared_sighting_qos = QoSProfile(
+            depth=self.shared_sighting_qos_depth,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE)
+        self._counters = SightingCounters()
+        # Optional reliable file record of the keys this controller really
+        # published to the shared topic (the per-receiver loss denominator
+        # must only contain keys that reached the wire).
+        self._published_log = None
+        log_dir = self.get_parameter('relay_log_dir').value
+        if log_dir:
+            import os
+            os.makedirs(log_dir, exist_ok=True)
+            self._published_log = open(
+                os.path.join(log_dir, f'published_{self.ns}.jsonl'), 'a',
+                buffering=1)
         self.tracker = None
+        self.target_tracker = None
         if self.perception_mode == 'sensor':
             # v4 Part A: own odometry + own synthesized detection stream.
             # No global neighbor/target ground truth.
             self.tracker = Tracker(
                 alpha=self._p('track_alpha'), beta=self._p('track_beta'),
                 gate=self._p('track_gate'), max_age=self._p('track_max_age'))
+            if self.sharing_mode == 'ros':
+                self.target_tracker = Tracker(
+                    alpha=self._p('track_alpha'), beta=self._p('track_beta'),
+                    gate=self._p('track_gate'),
+                    max_age=self._p('track_max_age'))
             self.create_subscription(Pose, f'/{self.ns}/pose',
                                      self._on_own_pose, 10)
             self.create_subscription(Float32MultiArray,
                                      f'/{self.ns}/detections',
                                      self._on_detections, 10)
+            epoch_qos = QoSProfile(depth=1,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL)
+            self.create_subscription(EpisodeState,
+                '/simulation/episode_state', self._on_episode_state,
+                epoch_qos)
+            self.create_subscription(TargetSighting,
+                f'/{self.ns}/local_target_sighting', self._on_local_sighting, 10)
+            self.create_subscription(TargetSighting,
+                '/swarm/target_sightings', self._on_shared_sighting,
+                self.shared_sighting_qos)
+            self.shared_sighting_pub = self.create_publisher(
+                TargetSighting, '/swarm/target_sightings',
+                self.shared_sighting_qos)
+            self.relay_event_pub = self.create_publisher(
+                String, '/swarm/relay_events', 50)
+            self.track_status_pub = self.create_publisher(
+                String, f'/{self.ns}/target_track_status', 20)
         else:
             # v3 baseline: ONE aggregate subscription for all peer poses
             # (v2 §10.2) keeps total subs O(N) instead of O(N^2), plus the
@@ -171,6 +249,134 @@ class BoidController(Node):
             self._t_first_seen = now
         self.target_pose = CachedPose(x, y, theta, v, w, now)
 
+    @staticmethod
+    def _sighting_record(msg):
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        return SightingRecord(
+            episode_id=msg.episode_id, sequence=msg.sequence,
+            sender_id=msg.sender_id, target_id=msg.target_id,
+            frame_id=msg.header.frame_id, stamp=stamp,
+            sender_xy=(msg.sender_position.x, msg.sender_position.y),
+            target_xy=(msg.target_position.x, msg.target_position.y),
+            covariance_xy=tuple(msg.covariance_xy),
+            confidence=msg.confidence, valid_for_sec=msg.valid_for_sec)
+
+    def _on_episode_state(self, msg):
+        changed = self._inbox.set_episode(int(msg.episode_id))
+        if changed != 'episode_changed':
+            return
+        self._episode_id = int(msg.episode_id)
+        self.cache.clear()
+        self.target_pose = None
+        self._t_first_seen = None
+        self._circling = CirclingDetector()
+        if self.tracker is not None:
+            self.tracker.clear()
+        if self.target_tracker is not None:
+            self.target_tracker.clear()
+        self._publish_track_status(False, 'search', 'episode_reset', None,
+                                   event='transition')
+
+    def _on_local_sighting(self, msg):
+        if self.sharing_mode != 'ros':
+            return
+        record = self._sighting_record(msg)
+        if self._episode_id is None:
+            return
+        reason = self._inbox.offer(record, source='direct', now=self._now())
+        if reason is None:
+            # Publish the unchanged simulator observation once; relayed
+            # observations never enter this path.
+            self.shared_sighting_pub.publish(msg)
+            self._counters.on_published()
+            if self._published_log is not None:
+                self._published_log.write(json.dumps(
+                    [int(record.episode_id), record.sender_id,
+                     int(record.sequence), record.stamp]) + '\n')
+
+    def _on_shared_sighting(self, msg):
+        if self.sharing_mode != 'ros':
+            return
+        record = self._sighting_record(msg)
+        now = self._now()
+        self._count_received(record, now)
+        reason = None
+        me = self.cache.get(self.ns)
+        if record.sender_id == self.ns:
+            reason = 'self_originated'
+        elif self._episode_id is None:
+            reason = 'awaiting_episode'
+        else:
+            reason = validate_sighting(
+                record, expected_episode=self._episode_id, now=now,
+                sighting_timeout=self._p('sighting_timeout'),
+                future_tolerance=self._p('future_stamp_tolerance'),
+                max_valid_for=2.0)
+        if reason is None and (me is None or now - me.stamp >
+                               self._p('pose_timeout')):
+            reason = 'receiver_pose_unavailable'
+        elif reason is None and abs(me.stamp - record.stamp) > self._p(
+                'radio_pose_time_tolerance'):
+            reason = 'receiver_pose_time_mismatch'
+        elif reason is None:
+            distance = math.hypot(me.x - record.sender_xy[0],
+                                  me.y - record.sender_xy[1])
+            if distance > self._p('radio_range'):
+                reason = 'out_of_range'
+            else:
+                reason = self._inbox.offer(record, source='relay', now=now)
+        self._publish_relay_event(msg, now, reason)
+
+    def _count_received(self, record, now):
+        """R-03: classify every callback-delivered shared sighting, before
+        and independently of the validity/freshness gates."""
+        is_self = record.sender_id == self.ns
+        me = self.cache.get(self.ns)
+        distance = None
+        if not is_self and me is not None and \
+                now - me.stamp <= self._p('pose_timeout'):
+            distance = math.hypot(me.x - record.sender_xy[0],
+                                  me.y - record.sender_xy[1])
+        self._counters.on_received(is_self, distance,
+                                   self._p('radio_range'))
+
+    def _publish_relay_event(self, msg, now, reason):
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        me = self.cache.get(self.ns)
+        distance = None if me is None else math.hypot(
+            me.x-msg.sender_position.x, me.y-msg.sender_position.y)
+        payload = {'receiver_id': self.ns, 'sender_id': msg.sender_id,
+                   'episode_id': msg.episode_id, 'sequence': msg.sequence,
+                   'observation_stamp': stamp, 'receive_stamp': now,
+                   'age': now-stamp, 'radio_distance': distance,
+                   'opportunity': reason in ('out_of_range', None),
+                   'accepted': reason is None,
+                   'reason': 'accepted' if reason is None else reason}
+        self.relay_event_pub.publish(String(data=json.dumps(payload)))
+
+    def _publish_track_status(self, valid, mode, reason, candidate,
+                              event='cycle'):
+        self._status_seq += 1
+        payload = {'episode_id': self._episode_id,
+                   'control_cycle_sequence': self._status_seq,
+                   'stamp': self._now(), 'belief_valid': bool(valid),
+                   'mode': mode, 'reason': reason, 'event': event,
+                   'sharing_mode': self.sharing_mode,
+                   'shared_sighting_qos_depth': self.shared_sighting_qos_depth,
+                   **self._counters.snapshot(),
+                   'source': ('unknown' if mode in ('oracle_tracking',
+                       'legacy_tracking') else mode),
+                   'own_pose_fresh': bool(self.cache.get(self.ns) is not None
+                       and self._now() - self.cache[self.ns].stamp <=
+                       self._p('pose_timeout'))}
+        if candidate is not None:
+            r = candidate.record
+            payload.update(last_sender_id=r.sender_id,
+                           last_sequence=r.sequence,
+                           observation_stamp=r.stamp)
+        if self.track_status_pub is not None:
+            self.track_status_pub.publish(String(data=json.dumps(payload)))
+
     # --- sensor mode (v4 A.5): own odometry + relative detections --------
     def _on_bounds(self, msg: Float32MultiArray):
         d = msg.data
@@ -198,7 +404,7 @@ class BoidController(Node):
         # Feed world-frame blips through the track filter (v4 A.5): smooths
         # noise, bridges dropouts, derives heading/speed from velocity.
         dets = [(x, y, cid, False) for (x, y, _th, cid) in neighbors]
-        if target is not None:
+        if target is not None and self.sharing_mode != 'ros':
             dets.append((target[0], target[1], target[4], True))
         ntracks, ttrack = self.tracker.step(dets, now)
 
@@ -207,7 +413,7 @@ class BoidController(Node):
         for tr in ntracks:
             self.cache[f'trk{tr.tid}'] = CachedPose(
                 tr.x, tr.y, tr.heading, tr.speed, 0.0, now)
-        if ttrack is not None:
+        if ttrack is not None and self.sharing_mode != 'ros':
             # heading/speed from the track velocity, not the raw blip
             self._note_target(ttrack.x, ttrack.y, ttrack.heading,
                               ttrack.speed, 0.0)
@@ -245,10 +451,41 @@ class BoidController(Node):
 
     # --- control cycle (v2 §7 + pursuit term) ------------------------------
     def control_cycle(self):
+        now = self._now()
+        if self._last_control_clock is not None and \
+                now + 1e-9 < self._last_control_clock:
+            self.cache.clear()
+            self.target_pose = None
+            self._target_valid_until = float('-inf')
+            self._t_first_seen = None
+            self._inbox.on_clock_rollback()
+            if self.tracker is not None:
+                self.tracker.clear()
+            if self.target_tracker is not None:
+                self.target_tracker.clear()
+            self._publish_track_status(False, 'search', 'clock_rollback', None,
+                                       event='transition')
+        self._last_control_clock = now
         me = self.cache.get(self.ns)
         if me is None:
             return
-        now = self._now()
+        candidate = None
+        if self.sharing_mode == 'ros' and self._episode_id is not None:
+            candidate = self._inbox.take_for_cycle(now=now)
+            if candidate is not None:
+                record = candidate.record
+                track = self.target_tracker.observe_target(
+                    *record.target_xy, record.stamp)
+                self.target_pose = target_pose_from_track(track, record.stamp)
+                self._target_valid_until = record.stamp + min(
+                    record.valid_for_sec, self._p('sighting_timeout'))
+                self._t_first_seen = (self._t_first_seen or record.stamp)
+                self._inbox.mark_applied(candidate)
+                self._last_applied_candidate = candidate
+        if self.sharing_mode == 'ros' and self.target_pose is not None \
+                and now > self._target_valid_until:
+            self.target_pose = None
+            self.target_tracker.forget_target()
         timeout = self._p('pose_timeout')
         r = self._p('sensing_radius')
         me_xy = (me.x, me.y)
@@ -262,6 +499,8 @@ class BoidController(Node):
 
         tgt = self.target_pose
         target_fresh = tgt is not None and now - tgt.stamp <= timeout
+        if self.sharing_mode == 'ros':
+            target_fresh = target_fresh and now <= self._target_valid_until
         # search: sensor mode, target expected but currently unseen by us
         searching = (self.perception_mode == 'sensor' and self.target_enabled
                      and not target_fresh and self._p('search_enabled'))
@@ -331,6 +570,26 @@ class BoidController(Node):
             px, py = terminal_commit(ctx, params, strategy(ctx, params))
             vx += self._p('w_pursuit') * px
             vy += self._p('w_pursuit') * py
+
+        if self.perception_mode == 'sensor':
+            if self.sharing_mode == 'ros':
+                track_mode = (
+                    'direct' if self._last_applied_candidate is not None and
+                    self._last_applied_candidate.source == 'direct' else
+                    'relay') if target_fresh else 'search'
+                candidate_for_status = (self._last_applied_candidate
+                                         if target_fresh else None)
+            elif target_fresh and self.sharing_mode == 'oracle':
+                track_mode, candidate_for_status = 'oracle_tracking', None
+            elif target_fresh and self.sharing_mode == 'legacy':
+                track_mode, candidate_for_status = 'legacy_tracking', None
+            else:
+                track_mode = 'direct' if target_fresh else 'search'
+                candidate_for_status = None
+            self._publish_track_status(
+                target_fresh, track_mode,
+                'tracking' if target_fresh else 'no_fresh_sighting',
+                candidate_for_status)
 
         b_lo, b_hi = self._bounds()
         bx, by = flocking.boundary(me_xy, b_lo, b_hi,
@@ -404,7 +663,7 @@ def main(args=None):
     node = BoidController()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()

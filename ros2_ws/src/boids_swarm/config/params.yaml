@@ -101,6 +101,17 @@
     comms_enabled: true
     comm_range: 12.0               # mesh link distance
     comm_jitter: 0.15             # relayed-sighting noise
+    sharing_mode: legacy          # legacy|off|oracle|ros
+    radio_range: 8.0              # application-layer simulated gate
+    # Controller shared-sighting history depth (phase 2 R-01). Default 10 since E1:
+    # depth=1 dropped 48.8% of in-range sightings per receiver, depth=10 only 1.8%;
+    # capture rate showed no detectable difference (n=20). Set 1 to reproduce phase 1.
+    shared_sighting_qos_depth: 10
+    oracle_max_hops: 0            # oracle relay hops: 0 = unlimited, 1 = single hop (R-02)
+    radio_pose_time_tolerance: 0.15
+    sighting_timeout: 0.6
+    future_stamp_tolerance: 0.02
+    sighting_valid_for_sec: 0.6
 
     # --- tracking + search (v4 A.5–A.6, sensor mode) ---
     track_alpha: 0.5              # alpha-beta position gain

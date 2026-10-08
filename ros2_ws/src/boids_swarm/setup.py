@@ -31,6 +31,7 @@ setup(
             'pygame_sim = boids_swarm.pygame_sim_node:main',
             'boid_controller = boids_swarm.boid_controller_node:main',
             'target_controller = boids_swarm.target_controller_node:main',
+            'nav2_bridge = boids_swarm.nav2_bridge:main',
         ],
     },
 )

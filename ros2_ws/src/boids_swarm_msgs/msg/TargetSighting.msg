@@ -1,0 +1,10 @@
+std_msgs/Header header
+string sender_id
+uint32 episode_id
+uint64 sequence
+string target_id
+geometry_msgs/Point sender_position
+geometry_msgs/Point target_position
+float64[4] covariance_xy
+float32 confidence
+float32 valid_for_sec
