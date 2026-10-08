@@ -1,0 +1,190 @@
+# Nav2 (Jazzy) for the pygame target, SDD v3 §6.4. Approach B:
+# planner_server (navfn) + controller_server only; no bt_navigator / amcl /
+# velocity_smoother. /map, TF and /target/odom come from
+# boids_swarm.nav2_bridge; boids enter both costmaps as a PointCloud2
+# (/boids_cloud) through the obstacle layer.
+#
+# Speed/turn limits: FollowPath.desired_linear_vel and
+# regulated_linear_scaling_min_radius below are PLACEHOLDERS (MPPI variant:
+# vx_max / wz_max).
+# nav2_target.launch.py overrides them from params.yaml
+# (agent_max_speed x target_speed_multiplier, target_omega_max), so the
+# controller never plans faster than the sim lets the target move. The sim
+# integrates cmd_vel instantly (no accel limit), so ax/az here are loose.
+# Controller: RegulatedPurePursuit, chosen over MPPI on measured speed;
+# MPPI is kept in nav2_target_mppi.yaml. Tuning history:
+# docs/testing/nav2-mppi-tuning.md
+lifecycle_manager_target:
+  ros__parameters:
+    use_sim_time: true
+    autostart: true
+    node_names: ["planner_server", "controller_server"]
+    bond_timeout: 8.0
+    attempt_respawn_reconnection: false
+
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    expected_planner_frequency: 5.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 2.0
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5
+      use_astar: true
+      allow_unknown: true
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 2.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_link
+      # Footprint = the target's body (params.yaml target_body_radius). The
+      # literal here is a placeholder: nav2_target.launch.py overwrites it
+      # (global AND local costmap) from params. An earlier 0.22 made the
+      # planner footprint bigger than the body, so the legal wall-hugging
+      # position was inscribed and navfn refused to plan from it. The map
+      # draws the wall OUTSIDE the arena (occupancy.rasterize_arena), which
+      # makes the body-touching cell high-cost (~200) but traversable.
+      robot_radius: 0.15
+      resolution: 0.1
+      track_unknown_space: false
+      transform_tolerance: 0.3
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: boids boids_clear
+        boids:
+          topic: /boids_cloud
+          data_type: "PointCloud2"
+          marking: true
+          clearing: false
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_max_range: 20.0
+          raytrace_max_range: 20.0
+        boids_clear:
+          topic: /boids_scan
+          data_type: "LaserScan"
+          marking: false
+          clearing: true
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          raytrace_max_range: 20.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 4.0
+        inflation_radius: 0.8
+      always_send_full_costmap: true
+
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    controller_frequency: 30.0
+    costmap_update_timeout: 0.30
+    odom_topic: /target/odom
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 1.0
+    progress_checker_plugins: ["progress_checker"]
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+    use_realtime_priority: false
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
+    general_goal_checker:
+      stateful: true
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.5
+      yaw_goal_tolerance: 6.3
+    FollowPath:
+      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+      desired_linear_vel: 3.6               # placeholder: launch sets v_max
+      lookahead_dist: 1.5
+      min_lookahead_dist: 0.8
+      max_lookahead_dist: 3.5
+      lookahead_time: 1.0
+      rotate_to_heading_angular_vel: 1.2    # = target_omega_max
+      transform_tolerance: 0.3
+      use_velocity_scaled_lookahead_point: true
+      min_approach_linear_velocity: 0.5
+      approach_velocity_scaling_dist: 1.0
+      # Off on purpose: the sim lets the target touch walls, which the
+      # costmap calls inscribed, so RPP would abort every time the evader
+      # stands against a wall. Clearance comes from the planner (global
+      # robot_radius 0.22 + boid cloud); r03 in the tuning doc shows no
+      # speed or safety difference on the no-boid courses.
+      use_collision_detection: false
+      max_allowed_time_to_collision_up_to_carrot: 1.0
+      use_regulated_linear_velocity_scaling: true
+      use_fixed_curvature_lookahead: false
+      # kinematic feasibility: the target turns at most omega_max, so a curve
+      # of radius R is only drivable at v <= omega_max * R. Launch sets this
+      # to v_max / omega_max (= 3.0 m as shipped) so speed scales with R below.
+      regulated_linear_scaling_min_radius: 3.0
+      regulated_linear_scaling_min_speed: 0.5
+      use_cost_regulated_linear_velocity_scaling: false
+      use_rotate_to_heading: true
+      rotate_to_heading_min_angle: 1.2
+      allow_reversing: false
+      max_angular_accel: 8.0
+      max_robot_pose_search_dist: 4.0
+      interpolate_curvature_after_goal: false
+      cost_scaling_dist: 0.6
+      cost_scaling_gain: 1.0
+      inflation_cost_scaling_factor: 4.0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 10.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      rolling_window: true
+      width: 12
+      height: 12
+      resolution: 0.1
+      robot_radius: 0.15
+      transform_tolerance: 0.3
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: boids boids_clear
+        boids:
+          topic: /boids_cloud
+          data_type: "PointCloud2"
+          marking: true
+          clearing: false
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_max_range: 10.0
+          raytrace_max_range: 10.0
+        boids_clear:
+          topic: /boids_scan
+          data_type: "LaserScan"
+          marking: false
+          clearing: true
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          raytrace_max_range: 10.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 4.0
+        inflation_radius: 0.8
+      always_send_full_costmap: true

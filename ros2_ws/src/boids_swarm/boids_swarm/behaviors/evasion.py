@@ -2,8 +2,7 @@
 
 ReactiveEvader: reverse-Boids + gap-seeking + wall/obstacle avoidance.
 AdaptiveEvader: utility selector over a behavior repertoire (v4 D / M14).
-Nav2Evader: M7 adapter stub (see §6) — the sim already publishes the
-plumbing contract; wiring Nav2 is a config exercise on top of this.
+Nav2Evader: M7 — see nav2_evader.py (re-exported here lazily).
 """
 
 import math
@@ -246,16 +245,10 @@ class AdaptiveEvader:
         return tang
 
 
-class Nav2Evader:
-    """M7 stretch (SDD §6): obstacle-aware fleeing via Nav2.
-
-    Design contract (§6.4): consume /target/odom + TF + /map published by
-    pygame_sim_node, compute an escape goal each cycle, send it to Nav2's
-    local controller, and blend a reactive term between goal updates.
-    Not wired in this milestone — instantiate ReactiveEvader instead.
-    """
-
-    def __init__(self, *_, **__):
-        raise NotImplementedError(
-            'Nav2Evader is the M7 stretch milestone (SDD v3 §6). '
-            'Run with evader:=reactive.')
+def __getattr__(name):
+    """Nav2Evader lives in behaviors/nav2_evader.py (it imports this module,
+    so re-export lazily to avoid a cycle)."""
+    if name == 'Nav2Evader':
+        from .nav2_evader import Nav2Evader
+        return Nav2Evader
+    raise AttributeError(name)

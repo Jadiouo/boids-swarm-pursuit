@@ -1,0 +1,224 @@
+# Nav2 (Jazzy) for the pygame target, SDD v3 §6.4. Approach B:
+# planner_server (navfn) + controller_server only; no bt_navigator / amcl /
+# velocity_smoother. /map, TF and /target/odom come from
+# boids_swarm.nav2_bridge; boids enter both costmaps as a PointCloud2
+# (/boids_cloud) through the obstacle layer.
+#
+# Speed/turn limits: FollowPath.vx_max / wz_max below are PLACEHOLDERS.
+# nav2_target.launch.py overrides them from params.yaml
+# (agent_max_speed x target_speed_multiplier, target_omega_max), so the
+# controller never plans faster than the sim lets the target move. The sim
+# integrates cmd_vel instantly (no accel limit), so ax/az here are loose.
+# Tuning history: docs/testing/nav2-mppi-tuning.md
+#
+# ALTERNATIVE controller (MPPI, the untuned-by-us spike baseline). The shipped
+# default is nav2_target.yaml (RegulatedPurePursuit): measured faster in open
+# courses, but MPPI was the only one that never aborted in the dense maze
+# before the global-costmap fix. Select with nav2_config:=nav2_target_mppi.yaml
+lifecycle_manager_target:
+  ros__parameters:
+    use_sim_time: true
+    autostart: true
+    node_names: ["planner_server", "controller_server"]
+    bond_timeout: 8.0
+    attempt_respawn_reconnection: false
+
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    expected_planner_frequency: 5.0
+    planner_plugins: ["GridBased"]
+    costmap_update_timeout: 2.0
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5
+      use_astar: true
+      allow_unknown: true
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 2.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_link
+      robot_radius: 0.15
+      resolution: 0.1
+      track_unknown_space: false
+      transform_tolerance: 0.3
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: boids boids_clear
+        boids:
+          topic: /boids_cloud
+          data_type: "PointCloud2"
+          marking: true
+          clearing: false
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_max_range: 20.0
+          raytrace_max_range: 20.0
+        boids_clear:
+          topic: /boids_scan
+          data_type: "LaserScan"
+          marking: false
+          clearing: true
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          raytrace_max_range: 20.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 4.0
+        inflation_radius: 0.8
+      always_send_full_costmap: true
+
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    controller_frequency: 30.0
+    costmap_update_timeout: 0.30
+    odom_topic: /target/odom
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 1.0
+    progress_checker_plugins: ["progress_checker"]
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+    use_realtime_priority: false
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
+    general_goal_checker:
+      stateful: true
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.5
+      yaw_goal_tolerance: 6.3
+    FollowPath:
+      plugin: "nav2_mppi_controller::MPPIController"
+      time_steps: 40
+      model_dt: 0.05
+      batch_size: 1000
+      ax_max: 8.0
+      ax_min: -8.0
+      ay_max: 3.0
+      ay_min: -3.0
+      az_max: 4.0
+      vx_std: 1.0
+      vy_std: 0.2
+      wz_std: 0.5
+      vx_max: 4.0
+      vx_min: 0.0
+      vy_max: 0.5
+      wz_max: 1.2
+      iteration_count: 1
+      prune_distance: 8.0
+      transform_tolerance: 0.3
+      temperature: 0.3
+      gamma: 0.015
+      motion_model: "DiffDrive"
+      visualize: false
+      regenerate_noises: true
+      critics: [
+        "ConstraintCritic", "CostCritic", "GoalCritic",
+        "PathAlignCritic", "PathFollowCritic", "PathAngleCritic",
+        "PreferForwardCritic"]
+      ConstraintCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 4.0
+      GoalCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 1.4
+      PreferForwardCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 0.5
+      CostCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.81
+        near_collision_cost: 253
+        critical_cost: 300.0
+        consider_footprint: false
+        collision_cost: 1000000.0
+        near_goal_distance: 1.0
+        trajectory_point_step: 2
+      PathAlignCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 14.0
+        max_path_occupancy_ratio: 0.05
+        trajectory_point_step: 4
+        threshold_to_consider: 0.5
+        offset_from_furthest: 20
+        use_path_orientations: false
+      PathFollowCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        offset_from_furthest: 5
+        threshold_to_consider: 1.4
+      PathAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 2.0
+        offset_from_furthest: 4
+        threshold_to_consider: 0.5
+        max_angle_to_furthest: 1.0
+        mode: 0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 10.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      rolling_window: true
+      width: 12
+      height: 12
+      resolution: 0.1
+      robot_radius: 0.15
+      transform_tolerance: 0.3
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: boids boids_clear
+        boids:
+          topic: /boids_cloud
+          data_type: "PointCloud2"
+          marking: true
+          clearing: false
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          obstacle_max_range: 10.0
+          raytrace_max_range: 10.0
+        boids_clear:
+          topic: /boids_scan
+          data_type: "LaserScan"
+          marking: false
+          clearing: true
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          raytrace_max_range: 10.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 4.0
+        inflation_radius: 0.8
+      always_send_full_costmap: true
