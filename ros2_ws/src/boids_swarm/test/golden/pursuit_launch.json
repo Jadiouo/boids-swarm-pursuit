@@ -1,0 +1,2178 @@
+{
+ "default_ui_off": [
+  {
+   "executable": "pygame_sim",
+   "kind": "node",
+   "name": "pygame_sim",
+   "on_exit": "Shutdown",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true
+    },
+    {},
+    {
+     "capture_mode": "hull",
+     "env_label": "custom",
+     "env_type": "custom",
+     "episode_time_limit": 90.0,
+     "episodes_max": 0,
+     "evader": "reactive",
+     "game_mode": "ai",
+     "headless": false,
+     "pursuit_strategy": "auto",
+     "render_trails": false,
+     "screenshot_dir": "",
+     "screenshot_period": 5.0,
+     "shrink_rate": 0.0,
+     "target_stamina_enabled": true,
+     "ui_enabled": false,
+     "zones": [
+      0.0
+     ]
+    }
+   ]
+  },
+  {
+   "executable": "target_controller",
+   "kind": "node",
+   "name": "target_controller",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "evader": "reactive"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent0",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent1",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent2",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent3",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent4",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent5",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent6",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent7",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  }
+ ],
+ "headless_default": [
+  {
+   "executable": "pygame_sim",
+   "kind": "node",
+   "name": "pygame_sim",
+   "on_exit": "Shutdown",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true
+    },
+    {},
+    {
+     "capture_mode": "hull",
+     "env_label": "custom",
+     "env_type": "custom",
+     "episode_time_limit": 90.0,
+     "episodes_max": 0,
+     "evader": "reactive",
+     "game_mode": "ai",
+     "headless": true,
+     "pursuit_strategy": "auto",
+     "render_trails": false,
+     "screenshot_dir": "",
+     "screenshot_period": 5.0,
+     "shrink_rate": 0.0,
+     "target_stamina_enabled": true,
+     "ui_enabled": true,
+     "zones": [
+      0.0
+     ]
+    }
+   ]
+  },
+  {
+   "executable": "target_controller",
+   "kind": "node",
+   "name": "target_controller",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "evader": "reactive"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent0",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent1",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent2",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent3",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent4",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent5",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent6",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent7",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  }
+ ],
+ "human_custom_obstacles": [
+  {
+   "executable": "pygame_sim",
+   "kind": "node",
+   "name": "pygame_sim",
+   "on_exit": "Shutdown",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      5.0,
+      5.0,
+      1.5,
+      15.0,
+      12.0,
+      2.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true
+    },
+    {},
+    {
+     "capture_mode": "hull",
+     "env_label": "custom",
+     "env_type": "custom",
+     "episode_time_limit": 90.0,
+     "episodes_max": 0,
+     "evader": "reactive",
+     "game_mode": "human",
+     "headless": false,
+     "pursuit_strategy": "auto",
+     "render_trails": false,
+     "screenshot_dir": "",
+     "screenshot_period": 5.0,
+     "shrink_rate": 0.0,
+     "target_stamina_enabled": true,
+     "ui_enabled": false,
+     "zones": [
+      0.0
+     ]
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent0",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      5.0,
+      5.0,
+      1.5,
+      15.0,
+      12.0,
+      2.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent1",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      5.0,
+      5.0,
+      1.5,
+      15.0,
+      12.0,
+      2.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent2",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      5.0,
+      5.0,
+      1.5,
+      15.0,
+      12.0,
+      2.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent3",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      5.0,
+      5.0,
+      1.5,
+      15.0,
+      12.0,
+      2.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent4",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      5.0,
+      5.0,
+      1.5,
+      15.0,
+      12.0,
+      2.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent5",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      5.0,
+      5.0,
+      1.5,
+      15.0,
+      12.0,
+      2.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent6",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      5.0,
+      5.0,
+      1.5,
+      15.0,
+      12.0,
+      2.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent7",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      5.0,
+      5.0,
+      1.5,
+      15.0,
+      12.0,
+      2.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  }
+ ],
+ "nav2_warm": [
+  {
+   "executable": "pygame_sim",
+   "kind": "node",
+   "name": "pygame_sim",
+   "on_exit": "Shutdown",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 4,
+     "obstacles": [
+      10.0,
+      10.0,
+      2.323832765
+     ],
+     "perception_mode": "sensor",
+     "seed": 7,
+     "sharing_mode": "ros",
+     "target_enabled": true
+    },
+    {
+     "time_scale": 1.0
+    },
+    {
+     "capture_mode": "hull",
+     "env_label": "pillar",
+     "env_type": "custom",
+     "episode_time_limit": 90.0,
+     "episodes_max": 0,
+     "evader": "nav2",
+     "game_mode": "ai",
+     "headless": true,
+     "pursuit_strategy": "auto",
+     "render_trails": false,
+     "screenshot_dir": "",
+     "screenshot_period": 5.0,
+     "shrink_rate": 0.0,
+     "target_stamina_enabled": true,
+     "ui_enabled": true,
+     "zones": [
+      0.0
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "include",
+   "launch_arguments": {
+    "cmd_topic": "nav2_cmd_vel",
+    "config": "nav2_target.yaml",
+    "obstacles": "10.0,10.0,2.3238327648331625",
+    "world_size": "20.0"
+   },
+   "source": "nav2_target.launch.py"
+  },
+  {
+   "actions": [
+    {
+     "executable": "target_controller",
+     "kind": "node",
+     "name": "target_controller",
+     "output": "screen",
+     "package": "boids_swarm",
+     "parameters": [
+      "params.yaml",
+      {
+       "num_agents": 4,
+       "obstacles": [
+        10.0,
+        10.0,
+        2.323832765
+       ],
+       "perception_mode": "sensor",
+       "seed": 7,
+       "sharing_mode": "ros",
+       "target_enabled": true,
+       "use_sim_time": true
+      },
+      {
+       "evader": "nav2"
+      }
+     ]
+    }
+   ],
+   "kind": "timer",
+   "period": 8.0
+  },
+  {
+   "actions": [
+    {
+     "executable": "boid_controller",
+     "kind": "node",
+     "name": "boid_controller",
+     "namespace": "agent0",
+     "output": "screen",
+     "package": "boids_swarm",
+     "parameters": [
+      "params.yaml",
+      {
+       "num_agents": 4,
+       "obstacles": [
+        10.0,
+        10.0,
+        2.323832765
+       ],
+       "perception_mode": "sensor",
+       "seed": 7,
+       "sharing_mode": "ros",
+       "target_enabled": true,
+       "use_sim_time": true
+      },
+      {},
+      {
+       "pursuit_strategy": "auto"
+      }
+     ]
+    },
+    {
+     "executable": "boid_controller",
+     "kind": "node",
+     "name": "boid_controller",
+     "namespace": "agent1",
+     "output": "screen",
+     "package": "boids_swarm",
+     "parameters": [
+      "params.yaml",
+      {
+       "num_agents": 4,
+       "obstacles": [
+        10.0,
+        10.0,
+        2.323832765
+       ],
+       "perception_mode": "sensor",
+       "seed": 7,
+       "sharing_mode": "ros",
+       "target_enabled": true,
+       "use_sim_time": true
+      },
+      {},
+      {
+       "pursuit_strategy": "auto"
+      }
+     ]
+    },
+    {
+     "executable": "boid_controller",
+     "kind": "node",
+     "name": "boid_controller",
+     "namespace": "agent2",
+     "output": "screen",
+     "package": "boids_swarm",
+     "parameters": [
+      "params.yaml",
+      {
+       "num_agents": 4,
+       "obstacles": [
+        10.0,
+        10.0,
+        2.323832765
+       ],
+       "perception_mode": "sensor",
+       "seed": 7,
+       "sharing_mode": "ros",
+       "target_enabled": true,
+       "use_sim_time": true
+      },
+      {},
+      {
+       "pursuit_strategy": "auto"
+      }
+     ]
+    },
+    {
+     "executable": "boid_controller",
+     "kind": "node",
+     "name": "boid_controller",
+     "namespace": "agent3",
+     "output": "screen",
+     "package": "boids_swarm",
+     "parameters": [
+      "params.yaml",
+      {
+       "num_agents": 4,
+       "obstacles": [
+        10.0,
+        10.0,
+        2.323832765
+       ],
+       "perception_mode": "sensor",
+       "seed": 7,
+       "sharing_mode": "ros",
+       "target_enabled": true,
+       "use_sim_time": true
+      },
+      {},
+      {
+       "pursuit_strategy": "auto"
+      }
+     ]
+    }
+   ],
+   "kind": "timer",
+   "period": 9.5
+  }
+ ],
+ "sensor_oracle_obst": [
+  {
+   "executable": "pygame_sim",
+   "kind": "node",
+   "name": "pygame_sim",
+   "on_exit": "Shutdown",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true
+    },
+    {},
+    {
+     "capture_mode": "hull",
+     "env_label": "obstacle_field",
+     "env_type": "custom",
+     "episode_time_limit": 90.0,
+     "episodes_max": 0,
+     "evader": "adaptive",
+     "game_mode": "ai",
+     "headless": false,
+     "pursuit_strategy": "auto",
+     "render_trails": false,
+     "screenshot_dir": "",
+     "screenshot_period": 5.0,
+     "shrink_rate": 0.0,
+     "target_stamina_enabled": true,
+     "ui_enabled": false,
+     "zones": [
+      0.0
+     ]
+    }
+   ]
+  },
+  {
+   "executable": "target_controller",
+   "kind": "node",
+   "name": "target_controller",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "evader": "adaptive"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent0",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent1",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent2",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent3",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent4",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent5",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent6",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent7",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      2.4,
+      17.3,
+      1.8,
+      9.6,
+      16.7,
+      2.1,
+      16.9,
+      17.3,
+      2.2,
+      18.1,
+      12.0,
+      2.5,
+      4.9,
+      11.0,
+      2.5,
+      8.0,
+      6.0,
+      2.6,
+      1.3,
+      2.7,
+      2.8,
+      17.2,
+      3.1,
+      2.6,
+      2.6,
+      14.2,
+      0.8,
+      9.9,
+      11.3,
+      1.1,
+      13.5,
+      6.1,
+      0.9,
+      10.9,
+      1.9,
+      0.9
+     ],
+     "perception_mode": "sensor",
+     "seed": 11,
+     "sharing_mode": "oracle",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  }
+ ],
+ "sensor_ros": [
+  {
+   "executable": "pygame_sim",
+   "kind": "node",
+   "name": "pygame_sim",
+   "on_exit": "Shutdown",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 5,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "sensor",
+     "seed": 3,
+     "sharing_mode": "ros",
+     "target_enabled": true
+    },
+    {
+     "oracle_max_hops": 2,
+     "relay_log_dir": "relay",
+     "time_scale": 1.0
+    },
+    {
+     "capture_mode": "hull",
+     "env_label": "custom",
+     "env_type": "custom",
+     "episode_time_limit": 90.0,
+     "episodes_max": 0,
+     "evader": "reactive",
+     "game_mode": "ai",
+     "headless": true,
+     "pursuit_strategy": "pincer",
+     "render_trails": false,
+     "screenshot_dir": "",
+     "screenshot_period": 5.0,
+     "shrink_rate": 0.0,
+     "target_stamina_enabled": true,
+     "ui_enabled": true,
+     "zones": [
+      0.0
+     ]
+    }
+   ]
+  },
+  {
+   "executable": "target_controller",
+   "kind": "node",
+   "name": "target_controller",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 5,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "sensor",
+     "seed": 3,
+     "sharing_mode": "ros",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "evader": "reactive"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent0",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 5,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "sensor",
+     "seed": 3,
+     "sharing_mode": "ros",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "relay_log_dir": "relay",
+     "shared_sighting_qos_depth": 4
+    },
+    {
+     "pursuit_strategy": "pincer"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent1",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 5,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "sensor",
+     "seed": 3,
+     "sharing_mode": "ros",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "relay_log_dir": "relay",
+     "shared_sighting_qos_depth": 4
+    },
+    {
+     "pursuit_strategy": "pincer"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent2",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 5,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "sensor",
+     "seed": 3,
+     "sharing_mode": "ros",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "relay_log_dir": "relay",
+     "shared_sighting_qos_depth": 4
+    },
+    {
+     "pursuit_strategy": "pincer"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent3",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 5,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "sensor",
+     "seed": 3,
+     "sharing_mode": "ros",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "relay_log_dir": "relay",
+     "shared_sighting_qos_depth": 4
+    },
+    {
+     "pursuit_strategy": "pincer"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent4",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 5,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "sensor",
+     "seed": 3,
+     "sharing_mode": "ros",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "relay_log_dir": "relay",
+     "shared_sighting_qos_depth": 4
+    },
+    {
+     "pursuit_strategy": "pincer"
+    }
+   ]
+  }
+ ],
+ "zones_shrink": [
+  {
+   "executable": "pygame_sim",
+   "kind": "node",
+   "name": "pygame_sim",
+   "on_exit": "Shutdown",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true
+    },
+    {},
+    {
+     "capture_mode": "tag",
+     "env_label": "shrink",
+     "env_type": "custom",
+     "episode_time_limit": 40.0,
+     "episodes_max": 3,
+     "evader": "reactive",
+     "game_mode": "ai",
+     "headless": true,
+     "pursuit_strategy": "auto",
+     "render_trails": true,
+     "screenshot_dir": "",
+     "screenshot_period": 5.0,
+     "shrink_rate": 0.14,
+     "target_stamina_enabled": false,
+     "ui_enabled": true,
+     "zones": [
+      0.0
+     ]
+    }
+   ]
+  },
+  {
+   "executable": "target_controller",
+   "kind": "node",
+   "name": "target_controller",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {
+     "evader": "reactive"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent0",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent1",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent2",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent3",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent4",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent5",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent6",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  },
+  {
+   "executable": "boid_controller",
+   "kind": "node",
+   "name": "boid_controller",
+   "namespace": "agent7",
+   "output": "screen",
+   "package": "boids_swarm",
+   "parameters": [
+    "params.yaml",
+    {
+     "num_agents": 8,
+     "obstacles": [
+      0.0
+     ],
+     "perception_mode": "perfect",
+     "seed": 7,
+     "sharing_mode": "legacy",
+     "target_enabled": true,
+     "use_sim_time": true
+    },
+    {},
+    {
+     "pursuit_strategy": "auto"
+    }
+   ]
+  }
+ ]
+}

@@ -7,31 +7,17 @@
     ros2 launch boids_swarm pursuit.launch.py evader:=nav2 env:=obstacle_field
 """
 
-import os
+import json
 
-import yaml
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
-    DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, Shutdown,
-    TimerAction)
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+    DeclareLaunchArgument, OpaqueFunction, Shutdown)
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from boids_swarm.launch_util import format_obstacles, obstacles_for_env
-
-
-def _world_size(params_file):
-    """Read world_size from params.yaml so the launch-side WorldGenerator
-    scales to the SAME arena the sim will use. Hard-coding 20.0 here made
-    a changed world_size silently produce a mis-scaled procedural map."""
-    try:
-        with open(params_file) as f:
-            doc = yaml.safe_load(f) or {}
-        return float(doc['/**']['ros__parameters']['world_size'])
-    except (OSError, KeyError, TypeError, ValueError):
-        return 20.0
+from boids_swarm.stack_config import STACK_LAUNCH_KEYS
+from boids_swarm.stack_launch import (
+    params_file_path, resolve_world, stack_actions)
 
 
 def launch_setup(context):
@@ -44,20 +30,15 @@ def launch_setup(context):
                      'shared_sighting_qos_depth', 'oracle_max_hops',
                      'relay_log_dir', 'time_scale', 'nav2_config', 'warmup',
                      'pursuer_delay')}
-    n = int(cfg['num_agents'])
     if cfg['sharing_mode'] == 'ros' and cfg['perception'] != 'sensor':
         raise ValueError('sharing_mode=ros requires perception=sensor')
     # Procedural env (v4 M13): generate the layout in the launch so the sim
     # AND the controllers share the same obstacles; zones/shrink go to the
     # sim only. env=custom keeps the obstacles string arg (v3 behavior).
-    params_file = os.path.join(get_package_share_directory('boids_swarm'),
-                               'config', 'params.yaml')
-    world_size = _world_size(params_file)
+    params_file = params_file_path()
+    world_size, obstacles = resolve_world(cfg, params_file)
     zones = [0.0]
     shrink_rate = float(cfg['shrink_rate'])
-    # ONE obstacle list for sim, controllers and the Nav2 bridge (M7).
-    obstacles = obstacles_for_env(cfg['env'], int(cfg['seed']), world_size,
-                                  cfg['obstacles'])
     if cfg['env'] != 'custom':
         from boids_swarm.world_gen import WorldGenerator
         layout = WorldGenerator(int(cfg['seed']), world_size).generate(
@@ -66,35 +47,40 @@ def launch_setup(context):
         if layout.shrink_rate > 0.0:
             shrink_rate = layout.shrink_rate
     common = {
-        'num_agents': n,
+        'num_agents': int(cfg['num_agents']),
         'seed': int(cfg['seed']),
         'obstacles': obstacles,
         'target_enabled': True,
         'perception_mode': cfg['perception'],
         'sharing_mode': cfg['sharing_mode'],
     }
-    # Controllers follow the sim's /clock so headless fast-forward stays
-    # a fair benchmark (§7.4); the sim itself is the clock source.
-    ctrl_common = dict(common, use_sim_time=True)
-    # Phase 2: empty launch value = keep the params.yaml value.
-    sim_extra, ctrl_extra = {}, {}
-    if cfg['shared_sighting_qos_depth'] != '':
-        ctrl_extra['shared_sighting_qos_depth'] = int(
-            cfg['shared_sighting_qos_depth'])
+    sim_extra = {}
     if cfg['oracle_max_hops'] != '':
         sim_extra['oracle_max_hops'] = int(cfg['oracle_max_hops'])
     if cfg['time_scale'] != '':
         sim_extra['time_scale'] = float(cfg['time_scale'])
     if cfg['relay_log_dir'] != '':
         sim_extra['relay_log_dir'] = cfg['relay_log_dir']
-        ctrl_extra['relay_log_dir'] = cfg['relay_log_dir']
+
+    headless = cfg['headless'].lower() == 'true'
+    ui_on = cfg['ui'].lower() == 'true'
+    # Control-panel path: the window-owning sim is the only process launched
+    # here; its StackSupervisor starts (and, on a mode switch, restarts) the
+    # controllers / target / Nav2 as a separate swarm_stack.launch.py so the
+    # window never closes. Headless and ui:=false keep launching everything
+    # directly, exactly as before (experiment scripts depend on that).
+    managed = ui_on and not headless
+    if managed:
+        sim_extra['stack_managed'] = True
+        sim_extra['stack_launch_args'] = json.dumps(
+            {k: cfg[k] for k in STACK_LAUNCH_KEYS}, sort_keys=True)
 
     actions = [
         Node(package='boids_swarm', executable='pygame_sim',
              name='pygame_sim', output='screen',
-             on_exit=Shutdown(),        # episodes_max done ⇒ end the run
+             on_exit=Shutdown(),        # episodes_max done => end the run
              parameters=[params_file, common, sim_extra, {
-                 'headless': cfg['headless'].lower() == 'true',
+                 'headless': headless,
                  'render_trails': cfg['trails'].lower() == 'true',
                  'game_mode': cfg['game_mode'],
                  'capture_mode': cfg['capture_mode'],
@@ -109,7 +95,7 @@ def launch_setup(context):
                  # so it must start from the SAME launch args they got.
                  'pursuit_strategy': cfg['strategy'],
                  'evader': cfg['evader'],
-                 'ui_enabled': cfg['ui'].lower() == 'true',
+                 'ui_enabled': ui_on,
                  # Display-only: env_type stays 'custom' because the layout
                  # was already generated here (regenerating in the sim would
                  # be the double-generation trap from log.md #11), but the
@@ -119,47 +105,9 @@ def launch_setup(context):
                  'screenshot_period': float(cfg['screenshot_period']),
              }]),
     ]
-    # Controllers can be held back `warmup` seconds so the Nav2 lifecycle
-    # (~5 s) is active before anything moves (benchmarks); 0 = start at once.
-    warmup = float(cfg['warmup'])
-    delay = float(cfg['pursuer_delay'])
-    ctrl_nodes, boid_nodes = [], []
-    if cfg['game_mode'] == 'ai':
-        ctrl_nodes.append(
-            Node(package='boids_swarm', executable='target_controller',
-                 name='target_controller', output='screen',
-                 parameters=[params_file, ctrl_common,
-                             {'evader': cfg['evader']}]))
-    if cfg['evader'] == 'nav2':
-        # Nav2 stack for the target: bridge + planner + controller. Its cmd
-        # goes to /target/nav2_cmd_vel; target_controller blends it with the
-        # reactive term and is the sole publisher of /target/cmd_vel.
-        share = get_package_share_directory('boids_swarm')
-        actions.append(IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(os.path.join(
-                share, 'launch', 'nav2_target.launch.py')),
-            launch_arguments={
-                'obstacles': format_obstacles(obstacles),
-                'world_size': repr(world_size),
-                'cmd_topic': '/target/nav2_cmd_vel',
-                'config': cfg['nav2_config'],
-            }.items()))
-    for i in range(n):
-        boid_nodes.append(
-            Node(package='boids_swarm', executable='boid_controller',
-                 namespace=f'agent{i}', name='boid_controller',
-                 output='screen',
-                 parameters=[params_file, ctrl_common, ctrl_extra,
-                             {'pursuit_strategy': cfg['strategy']}]))
-    # `pursuer_delay` additionally holds the boids back after the target is
-    # up: the Nav2 target process starts slower than a boid, and without it the
-    # pursuers get a startup head start that depends on process timing.
-    for t, nodes in ((warmup, ctrl_nodes), (warmup + delay, boid_nodes)):
-        if t > 0.0:
-            actions.append(TimerAction(period=t, actions=nodes))
-        else:
-            actions += nodes
-    return actions
+    if managed:
+        return actions
+    return actions + stack_actions(cfg, params_file, world_size, obstacles)
 
 
 def generate_launch_description():
