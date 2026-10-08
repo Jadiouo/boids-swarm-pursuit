@@ -1,0 +1,86 @@
+{
+ "smart": {
+  "seeds1-10/obstacle_field/smart-sampled": {
+   "rounds": 10,
+   "early_captures": 0,
+   "rest": 10,
+   "surv_mean": 5.64,
+   "caught": 10,
+   "touch_pooled": 0.15
+  },
+  "seeds1-10/obstacle_field/smart": {
+   "rounds": 10,
+   "early_captures": 0,
+   "rest": 10,
+   "surv_mean": 6.59,
+   "caught": 10,
+   "touch_pooled": 0.174
+  },
+  "seeds1-10/open/smart-sampled": {
+   "rounds": 10,
+   "early_captures": 1,
+   "rest": 9,
+   "surv_mean": 16.91,
+   "caught": 5,
+   "touch_pooled": 0.0
+  },
+  "seeds1-10/open/smart": {
+   "rounds": 10,
+   "early_captures": 1,
+   "rest": 9,
+   "surv_mean": 21.77,
+   "caught": 3,
+   "touch_pooled": 0.0
+  },
+  "holdout11-15/obstacle_field/smart-sampled": {
+   "rounds": 5,
+   "early_captures": 0,
+   "rest": 5,
+   "surv_mean": 6.5,
+   "caught": 5,
+   "touch_pooled": 0.527
+  },
+  "holdout11-15/obstacle_field/smart": {
+   "rounds": 5,
+   "early_captures": 0,
+   "rest": 5,
+   "surv_mean": 5.92,
+   "caught": 5,
+   "touch_pooled": 0.426
+  },
+  "holdout11-15/open/smart-sampled": {
+   "rounds": 5,
+   "early_captures": 1,
+   "rest": 4,
+   "surv_mean": 17.84,
+   "caught": 2,
+   "touch_pooled": 0.0
+  },
+  "holdout11-15/open/smart": {
+   "rounds": 5,
+   "early_captures": 0,
+   "rest": 5,
+   "surv_mean": 25.37,
+   "caught": 1,
+   "touch_pooled": 0.0
+  }
+ },
+ "nav2": {
+  "nav2-sampled": {
+   "pure_nav2_share": 0.02,
+   "nav2_mode_speed": 0.31,
+   "plan_fail": 24,
+   "plan_requests": 49,
+   "mean_speed": 2.33,
+   "surv_mean": 14.7
+  },
+  "nav2": {
+   "pure_nav2_share": 0.113,
+   "nav2_mode_speed": 2.53,
+   "plan_fail": 3,
+   "plan_requests": 43,
+   "mean_speed": 2.54,
+   "surv_mean": 15.6
+  }
+ }
+}
