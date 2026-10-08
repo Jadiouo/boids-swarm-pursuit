@@ -20,7 +20,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install tooling
-        run: python -m pip install --upgrade pip pytest pyflakes
+        run: python -m pip install --upgrade pip pytest pyflakes numpy scipy pyyaml
 
       - name: Unit tests
         working-directory: ros2_ws

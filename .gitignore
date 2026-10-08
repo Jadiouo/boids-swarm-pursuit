@@ -21,6 +21,16 @@ __pycache__/
 
 # --- 執行期輸出 ---
 /tmp/
+out/
 *.log
 frames/
 screenshots/
+
+# --- artifacts：只追蹤各資料夾的 README.md / SUPERSEDED.md / summary.json，其餘原始資料忽略 ---
+artifacts/**
+!artifacts/README.md
+!artifacts/*/
+!artifacts/*/README.md
+!artifacts/*/SUPERSEDED.md
+!artifacts/*/summary.json
+docs/planning/private/
