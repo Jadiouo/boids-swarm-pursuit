@@ -122,7 +122,8 @@ def generate_launch_description():
                               description='ai|human'),
         DeclareLaunchArgument(
             'evader', default_value='reactive',
-            description='reactive|adaptive (v4 M14)|nav2 (M7: also starts the '
+            description='reactive|adaptive (v4 M14)|smart (geodesic escape '
+                        'planner, no Nav2)|nav2 (M7: also starts the '
                         'Nav2 stack for the target)'),
         DeclareLaunchArgument('nav2_config', default_value='nav2_target.yaml',
                               description='Nav2 yaml for evader:=nav2'),

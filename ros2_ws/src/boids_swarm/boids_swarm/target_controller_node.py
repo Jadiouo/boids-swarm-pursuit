@@ -1,12 +1,15 @@
 """target_controller_node — the evader (SDD v3 §4.2–4.3, §6.3).
 
 Pluggable brain behind the `evader` parameter: `reactive` (default),
-`adaptive` (v4 M14 utility selector) or `nav2` (M7 stretch). Publishes
+`adaptive` (v4 M14 utility selector), `smart` (geodesic escape planner,
+no Nav2) or `nav2` (M7 stretch). Publishes
 /target/cmd_vel; the sim enforces the speed cap and the turn-rate limit
 that keeps the game winnable.
 """
 
+import json
 import math
+import os
 import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import SetParametersResult
@@ -17,6 +20,7 @@ from turtlesim.msg import Pose
 from .geometry import to_twist
 from .behaviors.evasion import AdaptiveEvader, ReactiveEvader
 from .behaviors.nav2_evader import Nav2Evader
+from .behaviors.smart_evader import SmartConfig, SmartEvader
 
 
 class TargetController(Node):
@@ -24,7 +28,7 @@ class TargetController(Node):
     def __init__(self):
         super().__init__('target_controller')
         self.declare_parameter('num_agents', 12)
-        self.declare_parameter('evader', 'reactive')  # reactive|adaptive|nav2
+        self.declare_parameter('evader', 'reactive')  # reactive|adaptive|smart|nav2
         self.declare_parameter('agent_max_speed', 2.0)
         self.declare_parameter('target_speed_multiplier', 2.0)
         self.declare_parameter('target_omega_max', 2.5)
@@ -47,6 +51,14 @@ class TargetController(Node):
         self.declare_parameter('nav2_plan_timeout', 2.0)
         self.declare_parameter('nav2_blacklist_ttl', 6.0)   # s a failed goal stays banned
         self.declare_parameter('nav2_blacklist_radius', 1.0)
+        # Smart evader: strategy/weights overridable (`ros2 param set`, then
+        # re-select evader to rebuild). Defaults live in SmartConfig.
+        for _k in self.SMART_TUNABLES:
+            self.declare_parameter('smart_' + _k, getattr(SmartConfig(), _k))
+        # mirrors of the sim's stamina model (params.yaml sets both sides)
+        self.declare_parameter('target_stamina_enabled', False)
+        self.declare_parameter('target_stamina_drain', 0.25)
+        self.declare_parameter('target_stamina_regen', 0.35)
         # same value the sim collides with and Nav2's costmaps use
         self.declare_parameter('target_body_radius', 0.7)
 
@@ -88,7 +100,41 @@ class TargetController(Node):
                 * self.get_parameter('target_speed_multiplier').value)
 
     BRAINS = {'reactive': ReactiveEvader, 'adaptive': AdaptiveEvader,
-              'nav2': Nav2Evader}
+              'smart': SmartEvader, 'nav2': Nav2Evader}
+
+    # smart_<name> ROS parameters (defaults come from SmartConfig); the
+    # speeds / omega / panic / stamina values are derived from the sim's own
+    # parameters below so they cannot drift from the world.
+    SMART_TUNABLES = ('decision_hz', 'candidates', 'w_lead', 'w_open',
+                      'w_away', 'w_dead', 'hysteresis', 'w_progress',
+                      'w_danger', 'w_clear', 'w_enclose', 'horizon',
+                      'rollouts')
+
+    def _smart_config(self):
+        params = {f'smart_{k}': self.get_parameter(f'smart_{k}').value
+                  for k in self.SMART_TUNABLES}
+        params['smart_control_rate_hz'] = self.get_parameter(
+            'control_rate_hz').value
+        params['smart_target_speed'] = self._v_max()
+        params['smart_pursuer_speed'] = self.get_parameter(
+            'agent_max_speed').value
+        params['smart_cruise_speed'] = params['smart_pursuer_speed']
+        params['smart_omega_max'] = self.get_parameter(
+            'target_omega_max').value
+        params['smart_panic_distance'] = self.get_parameter(
+            'panic_distance').value
+        params['smart_use_stamina'] = int(bool(self.get_parameter(
+            'target_stamina_enabled').value))
+        params['smart_stamina_drain'] = self.get_parameter(
+            'target_stamina_drain').value
+        params['smart_stamina_regen'] = self.get_parameter(
+            'target_stamina_regen').value
+        # tuning hook (tools/evader_compare.py --smart-json): a JSON object of
+        # smart_<field> overrides in the environment wins over ROS params
+        extra = os.environ.get('SMART_PARAMS_JSON')
+        if extra:
+            params.update(json.loads(extra))
+        return SmartConfig.from_params(params)
 
     def _set_brain(self, kind):
         """Build the evader brain, preserving the live arena bounds so a
@@ -108,6 +154,9 @@ class TargetController(Node):
             self.brain = Nav2Evader(
                 bmin, bmax, self._obstacles, node=self,
                 body_radius=self.get_parameter('target_body_radius').value)
+        elif kind == 'smart':
+            self.brain = SmartEvader(bmin, bmax, self._obstacles,
+                                     self._smart_config())
         else:
             self.brain = self.BRAINS[kind](bmin, bmax, self._obstacles)
         self.kind = kind
